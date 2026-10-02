@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>VR Hub - City</title>
+<style>
+body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; user-select: none; }
+#menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #111; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; color: #fff; text-align: center; padding: 20px; }
+#menu h1 { font-size: 36px; margin-bottom: 20px; color: #4aa3df; }
+.btn { padding: 15px 30px; font-size: 20px; background: #4aa3df; color: #fff; border: none; border-radius: 8px; cursor: pointer; margin: 10px; }
+.btn:hover { background: #357abd; }
+#fullscreenBtn { position: absolute; top: 20px; right: 20px; z-index: 20; padding: 10px 20px; font-size: 16px; background: #333; color: #fff; border: 1px solid #555; border-radius: 6px; cursor: pointer; }
+#vr-container { width: 100vw; height: 100vh; display: none; position: relative; }
+#left-view { position: absolute; top: 0; left: 0; width: 50%; height: 100%; overflow: hidden; }
+#right-view { position: absolute; top: 0; right: 0; width: 50%; height: 100%; overflow: hidden; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+<button id="fullscreenBtn" onclick="toggleFullscreen()">На весь экран</button>
+
+<div id="menu">
+  <h1>VR Hub: Город</h1>
+  <p style="margin-bottom:20px; color:#aaa; max-width:400px;">Для активации гироскопа нажмите кнопку ниже (на телефоне).</p>
+  <button class="btn" onclick="startGame()">Начать VR игру</button>
+</div>
+
+<div id="vr-container">
+  <div id="left-view"></div>
+  <div id="right-view"></div>
+</div>
+
+<script>
+let scene, cameraL, cameraR, rendererL, rendererR;
+let isPlaying = false;
+let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+let rotX = 0, rotY = 0;
+let playerPos = new THREE.Vector3(0, 1.7, 10);
+
+let baseAlpha = null;
+let baseBeta = null;
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(err => {});
+  } else {
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    }
+  }
+}
+
+function startGame() {
+  // Request permission for iOS 13+ devices
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission().then(response => {
+      if (response === 'granted') {
+        window.addEventListener('deviceorientation', handleOrientation, true);
+      }
+    }).catch(console.error);
+  } else {
+    window.addEventListener('deviceorientation', handleOrientation, true);
+  }
+
+  document.getElementById('menu').style.display = 'none';
+  document.getElementById('vr-container').style.display = 'block';
+  isPlaying = true;
+  init3D();
+}
+
+function handleOrientation(e) {
+  if (e.alpha === null || e.beta === null) return;
+
+  if (baseAlpha === null) {
+    baseAlpha = e.alpha;
+    baseBeta = e.beta;
+  }
+
+  // Pure phone orientation mapping
+  let alpha = THREE.MathUtils.degToRad(e.alpha - baseAlpha);
+  let beta = THREE.MathUtils.degToRad(e.beta - baseBeta);
+
+  rotY = -alpha;
+  rotX = -beta;
+  rotX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, rotX));
+}
+
+function init3D() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87ceeb);
+  scene.fog = new THREE.FogExp2(0x87ceeb, 0.015);
+
+  const aspect = (window.innerWidth / 2) / window.innerHeight;
+  cameraL = new THREE.PerspectiveCamera(70, aspect, 0.1, 1000);
+  cameraR = new THREE.PerspectiveCamera(70, aspect, 0.1, 1000);
+
+  rendererL = new THREE.WebGLRenderer({ antialias: true });
+  rendererL.setSize(window.innerWidth / 2, window.innerHeight);
+  rendererL.setPixelRatio(window.devicePixelRatio);
+  document.getElementById('left-view').appendChild(rendererL.domElement);
+
+  rendererR = new THREE.WebGLRenderer({ antialias: true });
+  rendererR.setSize(window.innerWidth / 2, window.innerHeight);
+  rendererR.setPixelRatio(window.devicePixelRatio);
+  document.getElementById('right-view').appendChild(rendererR.domElement);
+
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+  scene.add(ambientLight);
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+  dirLight.position.set(50, 200, 50);
+  scene.add(dirLight);
+
+  const floorGeo = new THREE.PlaneGeometry(500, 500);
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  scene.add(floor);
+
+  const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+  const colors = [0x555555, 0x666677, 0x776666, 0x445566, 0x665544];
+
+  for (let x = -100; x <= 100; x += 12) {
+    for (let z = -100; z <= 100; z += 12) {
+      if (Math.abs(x) < 6 && Math.abs(z) < 6) continue;
+      const h = Math.random() * 40 + 10;
+      const mat = new THREE.MeshStandardMaterial({ color: colors[Math.floor(Math.random() * colors.length)] });
+      const building = new THREE.Mesh(boxGeo, mat);
+      building.scale.set(8, h, 8);
+      building.position.set(x, h / 2, z);
+      scene.add(building);
+    }
+  }
+
+  window.addEventListener('resize', onWindowResize);
+  document.addEventListener('keydown', onKeyDown);
+  document.addEventListener('keyup', onKeyUp);
+
+  animate();
+}
+
+function onWindowResize() {
+  if (!isPlaying) return;
+  const w = window.innerWidth / 2;
+  const h = window.innerHeight;
+  rendererL.setSize(w, h);
+  rendererR.setSize(w, h);
+  cameraL.aspect = w / h;
+  cameraL.updateProjectionMatrix();
+  cameraR.aspect = w / h;
+  cameraR.updateProjectionMatrix();
+}
+
+function onKeyDown(e) {
+  if (e.code === 'KeyW' || e.code === 'ArrowUp') moveForward = true;
+  if (e.code === 'KeyS' || e.code === 'ArrowDown') moveBackward = true;
+  if (e.code === 'KeyA' || e.code === 'ArrowLeft') moveLeft = true;
+  if (e.code === 'KeyD' || e.code === 'ArrowRight') moveRight = true;
+}
+
+function onKeyUp(e) {
+  if (e.code === 'KeyW' || e.code === 'ArrowUp') moveForward = false;
+  if (e.code === 'KeyS' || e.code === 'ArrowDown') moveBackward = false;
+  if (e.code === 'KeyA' || e.code === 'ArrowLeft') moveLeft = false;
+  if (e.code === 'KeyD' || e.code === 'ArrowRight') moveRight = false;
+}
+
+function updateMovement() {
+  let speed = 0.15;
+  let dir = new THREE.Vector3();
+  if (moveForward) dir.z -= 1;
+  if (moveBackward) dir.z += 1;
+  if (moveLeft) dir.x -= 1;
+  if (moveRight) dir.x += 1;
+  dir.normalize();
+  dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
+  playerPos.addScaledVector(dir, speed);
+  playerPos.x = Math.max(-95, Math.min(95, playerPos.x));
+  playerPos.z = Math.max(-95, Math.min(95, playerPos.z));
+}
+
+function pollGamepad() {
+  const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (let i = 0; i < gamepads.length; i++) {
+    const gp = gamepads[i];
+    if (gp) {
+      // Left stick for movement only (camera rotation removed from gamepad)
+      let ax = gp.axes[0];
+      let ay = gp.axes[1];
+      if (Math.abs(ax) > 0.1 || Math.abs(ay) > 0.1) {
+        let speed = 0.15;
+        let dir = new THREE.Vector3(ax, 0, ay);
+        dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
+        playerPos.addScaledVector(dir, speed);
+      }
+    }
+  }
+}
+
+function animate() {
+  if (!isPlaying) return;
+  requestAnimationFrame(animate);
+
+  updateMovement();
+  pollGamepad();
+
+  let ipd = 0.032;
+  let quaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(rotX, rotY, 0, 'YXZ'));
+
+  cameraL.position.copy(playerPos);
+  cameraL.position.add(new THREE.Vector3(-ipd, 0, 0).applyQuaternion(quaternion));
+  cameraL.quaternion.copy(quaternion);
+
+  cameraR.position.copy(playerPos);
+  cameraR.position.add(new THREE.Vector3(ipd, 0, 0).applyQuaternion(quaternion));
+  cameraR.quaternion.copy(quaternion);
+
+  rendererL.render(scene, cameraL);
+  rendererR.render(scene, cameraR);
+}
+</script>
+</body>
+</html>
