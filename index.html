@@ -12,14 +12,17 @@
   .btn { padding: 14px 28px; font-size: 18px; font-weight: bold; background: #4aa3df; color: #fff; border: none; border-radius: 10px; cursor: pointer; margin: 8px; }
   .btn:active { background: #357abd; }
   .btn-sec { background: #333; border: 1px solid #555; }
+  .btn-danger { background: #c0392b; border: 1px solid #e74c3c; }
   input { padding: 14px; font-size: 20px; text-align: center; border-radius: 10px; border: 1px solid #555; background: #222; color: #fff; width: 200px; margin-bottom: 15px; letter-spacing: 4px; }
-  #pc-panel { display: none; width: 100%; height: 100%; background: #181c24; position: absolute; top: 0; left: 0; z-index: 900; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; }
-  .top-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 15px; margin-bottom: 15px; }
-  .main-content { display: flex; flex: 1; gap: 20px; overflow: hidden; }
-  .sidebar { width: 300px; display: flex; flex-direction: column; gap: 15px; }
-  .game-card { background: #222834; border: 1px solid #3a4454; border-radius: 12px; padding: 15px; text-align: left; }
+  #pc-panel { display: none; width: 100%; height: 100%; background: #181c24; position: absolute; top: 0; left: 0; z-index: 900; padding: 16px; box-sizing: border-box; flex-direction: column; }
+  .top-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 12px; margin-bottom: 12px; }
+  .main-content { display: flex; flex: 1; gap: 16px; overflow: hidden; }
+  .sidebar { width: 280px; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; }
+  .game-card { background: #222834; border: 1px solid #3a4454; border-radius: 12px; padding: 14px; text-align: left; }
   .game-card h3 { margin: 0 0 10px 0; color: #4aa3df; }
+  .game-card p { font-size: 13px; color: #aaa; margin: 0 0 12px 0; }
   #pc-view-container { flex: 1; background: #000; border-radius: 12px; overflow: hidden; position: relative; }
+  #pc-view-container canvas { display: block; }
   #vr-container { width: 100vw; height: 100vh; display: none; position: relative; z-index: 10; }
   #left-view { position: absolute; top: 0; left: 0; width: 50%; height: 100%; overflow: hidden; }
   #right-view { position: absolute; top: 0; right: 0; width: 50%; height: 100%; overflow: hidden; }
@@ -55,15 +58,15 @@
     </div>
     <div>
       <button class="btn btn-sec" onclick="pcTogglePhoneFullscreen()" id="pcFsBtn">На весь экран (телефон)</button>
-      <button class="btn btn-sec" onclick="exitGameFromPC()" id="pcExitBtn" style="display:none; background:#c0392b;">Выйти из игры</button>
+      <button class="btn btn-danger" onclick="exitGameFromPC()" id="pcExitBtn" style="display:none;">Выйти из игры</button>
     </div>
   </div>
   <div class="main-content">
     <div class="sidebar">
-      <h3>Доступные игры</h3>
+      <h3 style="margin:0; color:#fff;">Доступные игры</h3>
       <div class="game-card">
         <h3>Город VR</h3>
-        <p style="font-size:13px; color:#aaa;">Синхронный мегаполис со стационарными домами.</p>
+        <p>Синхронный мегаполис со стационарными домами.</p>
         <button class="btn" onclick="launchGame('city')">Запустить</button>
       </div>
     </div>
@@ -98,6 +101,7 @@ let sessionRef = null;
 let scene, cameraL, cameraR, rendererL, rendererR;
 let pcScene, pcCamera, pcRenderer;
 let isPlaying = false;
+let pcStreamActive = false;
 let playerPos = new THREE.Vector3(0, 1.7, 10);
 let targetQuaternion = new THREE.Quaternion();
 let currentQuaternion = new THREE.Quaternion();
@@ -136,20 +140,35 @@ function selectRole(r) {
     sessionRef.on('value', (snapshot) => {
       const data = snapshot.val();
       if (!data) return;
-      if (data.status === 'playing' && !isPlaying) {
-        startPCStream();
-      } else if (data.status === 'menu' && isPlaying) {
-        stopPCStream();
+
+      if (data.status === 'playing') {
+        setPCPlaying(true);
+      } else {
+        setPCPlaying(false);
       }
+
       if (data.quat && data.pos) {
         currentQuaternion.set(data.quat.x, data.quat.y, data.quat.z, data.quat.w);
         playerPos.set(data.pos.x, data.pos.y, data.pos.z);
       }
+      updateFsButton(!!data.fs);
     });
+
     initPCStreamScene();
+    animatePC();
   } else {
     document.getElementById('step-role').style.display = 'none';
     document.getElementById('step-phone-wait').style.display = 'block';
+  }
+}
+
+function setPCPlaying(playing) {
+  pcStreamActive = playing;
+  const exitBtn = document.getElementById('pcExitBtn');
+  if (playing) {
+    exitBtn.style.display = 'inline-block';
+  } else {
+    exitBtn.style.display = 'none';
   }
 }
 
@@ -193,14 +212,12 @@ function launchGame(gameName) {
   if (sessionRef) {
     sessionRef.update({ status: 'playing', game: gameName });
   }
-  document.getElementById('pcExitBtn').style.display = 'inline-block';
 }
 
 function exitGameFromPC() {
   if (sessionRef) {
     sessionRef.update({ status: 'menu', game: null, fs: false });
   }
-  document.getElementById('pcExitBtn').style.display = 'none';
 }
 
 function pcTogglePhoneFullscreen() {
@@ -212,41 +229,11 @@ function pcTogglePhoneFullscreen() {
   }
 }
 
-function startPCStream() {
-  document.getElementById('pc-panel').style.display = 'none';
-  isPlaying = true;
-  initPCStreamScene();
-  animatePC();
-}
-
-function stopPCStream() {
-  isPlaying = false;
-  document.getElementById('pc-panel').style.display = 'flex';
-}
-
-function startVRGameEngine() {
-  document.getElementById('ui-layer').style.display = 'none';
-  document.getElementById('pc-panel').style.display = 'none';
-  document.getElementById('vr-container').style.display = 'block';
-  isPlaying = true;
-
-  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    DeviceOrientationEvent.requestPermission().then(resp => {
-      if (resp === 'granted') window.addEventListener('deviceorientation', handleOrientation, true);
-    }).catch(console.error);
-  } else {
-    window.addEventListener('deviceorientation', handleOrientation, true);
+function updateFsButton(fsState) {
+  const btn = document.getElementById('pcFsBtn');
+  if (btn) {
+    btn.innerText = fsState ? 'Отключить полный экран' : 'На весь экран (телефон)';
   }
-
-  initVR3D();
-  animateVR();
-}
-
-function stopVRGameEngine() {
-  isPlaying = false;
-  document.getElementById('vr-container').style.display = 'none';
-  document.getElementById('step-phone-wait').style.display = 'block';
-  document.getElementById('step-phone-wait').innerHTML = '<h1>Ожидание игры</h1><p>Игра завершена на ПК.</p>';
 }
 
 function getScreenAngle() {
@@ -343,14 +330,49 @@ function initPCStreamScene() {
 }
 
 function animatePC() {
-  if (!isPlaying || role !== 'pc') return;
+  if (role !== 'pc') return;
   requestAnimationFrame(animatePC);
 
-  currentQuaternion.slerp(targetQuaternion, 0.25);
-  pcCamera.position.copy(playerPos);
-  pcCamera.quaternion.copy(currentQuaternion);
+  if (!pcRenderer || !pcCamera) return;
+
+  if (pcStreamActive) {
+    currentQuaternion.slerp(targetQuaternion, 0.25);
+    pcCamera.position.copy(playerPos);
+    pcCamera.quaternion.copy(currentQuaternion);
+  } else {
+    // Menu view: orbit slowly around the city
+    var t = Date.now() * 0.0001;
+    pcCamera.position.set(Math.cos(t) * 200, 150, Math.sin(t) * 200);
+    pcCamera.lookAt(0, 30, 0);
+  }
 
   pcRenderer.render(pcScene, pcCamera);
+}
+
+function startVRGameEngine() {
+  document.getElementById('ui-layer').style.display = 'none';
+  document.getElementById('vr-container').style.display = 'block';
+  isPlaying = true;
+
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission().then(resp => {
+      if (resp === 'granted') window.addEventListener('deviceorientation', handleOrientation, true);
+    }).catch(console.error);
+  } else {
+    window.addEventListener('deviceorientation', handleOrientation, true);
+  }
+
+  initVR3D();
+  animateVR();
+}
+
+function stopVRGameEngine() {
+  isPlaying = false;
+  document.getElementById('vr-container').style.display = 'none';
+  document.getElementById('ui-layer').style.display = 'flex';
+  document.getElementById('step-role').style.display = 'none';
+  document.getElementById('step-phone-wait').style.display = 'block';
+  document.getElementById('step-phone-wait').innerHTML = '<h1>Ожидание игры</h1><p>Игра завершена на ПК. Выберите другую игру.</p>';
 }
 
 function initVR3D() {
@@ -380,8 +402,8 @@ function initVR3D() {
 }
 
 function onWindowResize() {
-  if (!isPlaying) return;
   if (role === 'phone') {
+    if (!isPlaying) return;
     var leftView = document.getElementById('left-view');
     var rightView = document.getElementById('right-view');
     var w = leftView.clientWidth;
@@ -410,7 +432,7 @@ function animateVR() {
 
   var ipd = 0.032;
   var offL = new THREE.Vector3(-ipd, 0, 0).applyQuaternion(currentQuaternion);
-  var offR = new THREE.Vector3(ipd, 0, 0).applyQuaternion(new THREE.Quaternion());
+  var offR = new THREE.Vector3(ipd, 0, 0).applyQuaternion(currentQuaternion);
 
   cameraL.position.copy(playerPos).add(offL);
   cameraL.quaternion.copy(currentQuaternion);
