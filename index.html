@@ -117,6 +117,14 @@ let playerPos = new THREE.Vector3(0, 1.7, 10);
 let targetQuaternion = new THREE.Quaternion();
 let currentQuaternion = new THREE.Quaternion();
 let baseQuaternion = null;
+let lastWrittenPos = { x: 0, y: 0, z: 0 };
+
+function posSameAsWritten(x, y, z, eps) {
+  if (eps === undefined) eps = 0.05;
+  return Math.abs(lastWrittenPos.x - x) < eps &&
+         Math.abs(lastWrittenPos.y - y) < eps &&
+         Math.abs(lastWrittenPos.z - z) < eps;
+}
 
 const fixedBuildingsData = [
   {x: -120, z: -120, h: 45, color: 0x7d8590},
@@ -158,8 +166,10 @@ function selectRole(r) {
         pcStreamActive = false;
       }
 
-      if (data.quat && data.pos) {
+      if (data.quat) {
         currentQuaternion.set(data.quat.x, data.quat.y, data.quat.z, data.quat.w);
+      }
+      if (data.pos && !posSameAsWritten(data.pos.x, data.pos.y, data.pos.z)) {
         playerPos.set(data.pos.x, data.pos.y, data.pos.z);
       }
       updateFsButton(!!data.fs);
@@ -195,12 +205,31 @@ function joinSession() {
         if (val.status === 'playing' && !isPlaying) {
           currentActiveGame = val.game || 'city';
           startVRGameEngine();
+        } else if (val.status === 'playing' && isPlaying && val.game && val.game !== currentActiveGame) {
+          // New game launched on PC -> rebuild the phone scene too
+          currentActiveGame = val.game;
+          initVR3D();
+          if (currentActiveGame === 'trials') {
+            var hudR = document.getElementById('trial-hud');
+            if (hudR) { hudR.style.display = 'block'; hudR.innerText = 'Найди выход из лабиринта!'; }
+          }
         } else if (val.status === 'menu' && isPlaying) {
           stopVRGameEngine();
         }
 
-        // Sync position + orientation from PC into the phone view
-        if (isPlaying && val.pos) {
+        // Fullscreen synced from the PC button -> goes to the phone
+        if (val.fs !== undefined) {
+          if (val.fs) {
+            if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+              document.documentElement.requestFullscreen().catch(function(){});
+            }
+          } else if (document.fullscreenElement && document.exitFullscreen) {
+            document.exitFullscreen();
+          }
+        }
+
+        // Sync position + orientation from the PC (ignore our own echo)
+        if (isPlaying && val.pos && !posSameAsWritten(val.pos.x, val.pos.y, val.pos.z)) {
           playerPos.set(val.pos.x, val.pos.y, val.pos.z);
         }
         if (isPlaying && val.quat) {
@@ -225,9 +254,77 @@ let blockMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
 let highlightBox = null;
 let playerVelY = 0;
 let isGrounded = false;
-let trialCheckpoints = [];
 let trialCurrentIndex = 0;
 let trialCompleted = false;
+let trialWalls = [];
+let trialGoalPos = new THREE.Vector3(0, 1.7, 0);
+var TRIAL_CELL = 4;
+var TRIAL_N = 15;
+var phoneMoving = false;
+var lastPhonePosSent = null;
+var lastPcPosSent = null;
+let mazeWalls = [];
+let mazeCheckpointRings = [];
+
+// Deterministic PRNG so the PC and phone generate the SAME maze
+function mulberry32(seed) {
+  return function() {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function generateMaze(rows, cols) {
+  var rnd = mulberry32(20261002);
+  var cells = [];
+  for (var r = 0; r < rows; r++) {
+    cells[r] = [];
+    for (var c = 0; c < cols; c++) {
+      cells[r][c] = { vis: false, walls: { top:true, bottom:true, left:true, right:true } };
+    }
+  }
+  var dirs = [[0,-1,'top','bottom'],[0,1,'bottom','top'],[-1,0,'left','right'],[1,0,'right','left']];
+  var stack = [[0,0]];
+  cells[0][0].vis = true;
+  while (stack.length) {
+    var cur = stack[stack.length - 1];
+    var r = cur[0], c = cur[1];
+    var opts = [];
+    for (var i = 0; i < dirs.length; i++) {
+      var dr = dirs[i][0], dc = dirs[i][1];
+      var nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !cells[nr][nc].vis) opts.push(dirs[i]);
+    }
+    if (!opts.length) { stack.pop(); continue; }
+    var pick = opts[Math.floor(rnd() * opts.length)];
+    var nr = r + pick[0], nc = c + pick[1];
+    cells[r][c].walls[pick[2]] = false;
+    cells[nr][nc].walls[pick[3]] = false;
+    cells[nr][nc].vis = true;
+    stack.push([nr, nc]);
+  }
+  return cells;
+}
+
+function addMazeWall(sceneTarget, geo, mat, x, z, hx, hz) {
+  var wall = new THREE.Mesh(geo, mat);
+  wall.position.set(x, 3, z);
+  wall.userData.half = { hx: hx / 2, hz: hz / 2 };
+  sceneTarget.add(wall);
+  mazeWalls.push(wall);
+}
+
+function canMoveTo(x, z) {
+  var R = 0.8;
+  for (var i = 0; i < mazeWalls.length; i++) {
+    var w = mazeWalls[i];
+    var h = w.userData.half;
+    if (Math.abs(x - w.position.x) < h.hx + R && Math.abs(z - w.position.z) < h.hz + R) return false;
+  }
+  return true;
+}
 
 function initTrialsEnvironment(sceneTarget) {
   sceneTarget.background = new THREE.Color(0x87ceeb);
@@ -238,38 +335,79 @@ function initTrialsEnvironment(sceneTarget) {
   sun.position.set(50, 200, 50);
   sceneTarget.add(sun);
 
-  // Start platform
-  var start = new THREE.Mesh(
-    new THREE.BoxGeometry(8, 2, 8),
-    new THREE.MeshStandardMaterial({ color: 0x4aa3df })
+  // Ground
+  var ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(200, 200),
+    new THREE.MeshStandardMaterial({ color: 0x7aa87a })
   );
-  start.position.set(0, -1, 0);
-  sceneTarget.add(start);
+  ground.rotation.x = -Math.PI / 2;
+  sceneTarget.add(ground);
 
-  // A series of platforms (checkpoints) leading away, with gaps to jump
-  var platMat = new THREE.MeshStandardMaterial({ color: 0x27ae60 });
-  trialCheckpoints = [];
-  var positions = [
-    {x: 0,    z: -20, y: 0},
-    {x: -14,  z: -40, y: 2},
-    {x: 14,   z: -60, y: 4},
-    {x: -14,  z: -80, y: 6},
-    {x: 0,    z: -100, y: 8}
-  ];
-  positions.forEach(function(p, i) {
-    var plat = new THREE.Mesh(new THREE.BoxGeometry(6, 2, 6), platMat);
-    plat.position.set(p.x, p.y, p.z);
-    sceneTarget.add(plat);
-    trialCheckpoints.push(new THREE.Vector3(p.x, p.y + 1.7, p.z));
-  });
+  var ROWS = 9, COLS = 9, CELL = 6, WALL_H = 6;
+  var maze = generateMaze(ROWS, COLS);
+  var wallMat = new THREE.MeshStandardMaterial({ color: 0x9a6a4a });
+  var horGeo = new THREE.BoxGeometry(CELL, WALL_H, 0.8);
+  var verGeo = new THREE.BoxGeometry(0.8, WALL_H, CELL);
+  mazeWalls = [];
+  var offX = -((COLS - 1) * CELL) / 2;
+  var offZ = -((ROWS - 1) * CELL) / 2;
 
-  // Goal marker at the last checkpoint
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      var cx = offX + c * CELL;
+      var cz = offZ + r * CELL;
+      var cell = maze[r][c];
+      if (cell.walls.top) addMazeWall(sceneTarget, horGeo, wallMat, cx, cz - CELL / 2, CELL, 0.8);
+      if (cell.walls.bottom) addMazeWall(sceneTarget, horGeo, wallMat, cx, cz + CELL / 2, CELL, 0.8);
+      if (cell.walls.left) addMazeWall(sceneTarget, verGeo, wallMat, cx - CELL / 2, cz, 0.8, CELL);
+      if (cell.walls.right) addMazeWall(sceneTarget, verGeo, wallMat, cx + CELL / 2, cz, 0.8, CELL);
+    }
+  }
+
+  // Start marker
+  var startMark = new THREE.Mesh(
+    new THREE.BoxGeometry(4, 0.2, 4),
+    new THREE.MeshBasicMaterial({ color: 0x4aa3df, transparent: true, opacity: 0.7 })
+  );
+  startMark.position.set(offX, 0.11, offZ);
+  sceneTarget.add(startMark);
+
+  // Goal at the last cell
+  var gx = offX + (COLS - 1) * CELL;
+  var gz = offZ + (ROWS - 1) * CELL;
   var goal = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.5, 1.5, 4, 16),
-    new THREE.MeshStandardMaterial({ color: 0xf1c40f, emissive: 0x8a6d00 })
+    new THREE.CylinderGeometry(1.6, 1.6, 6, 16),
+    new THREE.MeshStandardMaterial({ color: 0xf1c40f, emissive: 0x8a6d00, emissiveIntensity: 0.5 })
   );
-  goal.position.set(0, 10, -100);
+  goal.position.set(gx, 3, gz);
   sceneTarget.add(goal);
+
+  // Checkpoint rings
+  trialCheckpoints = [];
+  mazeCheckpointRings = [];
+  var ringMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, side: THREE.DoubleSide });
+  var ringGeo = new THREE.RingGeometry(2.3, 2.9, 24);
+  for (var rr = 0; rr < ROWS; rr++) {
+    for (var cc = 0; cc < COLS; cc++) {
+      if ((rr * COLS + cc) % 8 === 0 && (rr !== 0 || cc !== 0) && !(rr === ROWS - 1 && cc === COLS - 1)) {
+        var chx = offX + cc * CELL;
+        var chz = offZ + rr * CELL;
+        var ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.set(chx, 2.6, chz);
+        sceneTarget.add(ring);
+        mazeCheckpointRings.push(ring);
+        trialCheckpoints.push(new THREE.Vector3(chx, 1.7, chz));
+      }
+    }
+  }
+
+  playerPos.set(offX, 1.7, offZ);
+  playerVelY = 0;
+  isGrounded = true;
+  trialCurrentIndex = 0;
+  trialCompleted = false;
+  trialGoalPos.set(offX + (COLS - 1) * CELL, 1.7, offZ + (ROWS - 1) * CELL);
 }
 
 function initMinecraftEnvironment(sceneTarget) {
@@ -346,29 +484,28 @@ function launchGame(gameName) {
   currentActiveGame = gameName;
   trialCurrentIndex = 0;
   trialCompleted = false;
+  playerPos.set(0, 1.7, 10);
+  playerVelY = 0;
+  isGrounded = true;
+  if (role === 'pc') {
+    initPCStreamScene();
+  }
   if (sessionRef) {
     sessionRef.update({ status: 'playing', game: gameName, blocks: [] });
   }
 }
 
 function togglePcFullscreen() {
-  if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().then(() => {
-      const btn = document.getElementById('pcFsBtn');
-      if (btn) btn.innerText = 'Свернуть экран';
-    }).catch(()=>{});
-  } else {
-    if (document.exitFullscreen) document.exitFullscreen();
-  }
+  if (!sessionRef) return;
+  pcFsState = !pcFsState;
+  sessionRef.update({ fs: pcFsState });
 }
 
-// Keep the button label in sync every time fullscreen toggles (multi-use)
-document.addEventListener('fullscreenchange', () => {
+function updateFsButton(fs) {
+  pcFsState = !!fs;
   const btn = document.getElementById('pcFsBtn');
-  if (btn) {
-    btn.innerText = document.fullscreenElement ? 'Свернуть экран' : 'Полный экран';
-  }
-});
+  if (btn) btn.innerText = pcFsState ? 'Свернуть экран' : 'Полный экран';
+}
 
 function exitGameFromPC() {
   if (sessionRef) {
@@ -536,34 +673,44 @@ function updateGamepadMovement() {
     move.addScaledVector(forward, -gp.sy);
     move.addScaledVector(right, gp.sx);
     move.normalize().multiplyScalar(gamepadMoveSpeed * 0.016);
-    playerPos.add(move);
+
+    // Maze wall collision (only in trials)
+    if (currentActiveGame === 'trials' && mazeWalls.length) {
+      var tryX = playerPos.x + move.x;
+      var tryZ = playerPos.z + move.z;
+      if (canMoveTo(tryX, playerPos.z)) playerPos.x = tryX;
+      if (canMoveTo(playerPos.x, tryZ)) playerPos.z = tryZ;
+    } else {
+      playerPos.add(move);
+    }
     if (playerPos.y < groundY) playerPos.y = groundY;
   }
 
-  // ---- Trials: check checkpoint progression ----
-  if (currentActiveGame === 'trials' && sessionRef) {
-    // Fall off the world -> reset to start
-    if (playerPos.y < -10) {
-      playerPos.set(0, 1.7, 0);
-      playerVelY = 0;
-      trialCurrentIndex = 0;
-      var hudReset = document.getElementById('trial-hud');
-      if (hudReset) hudReset.innerText = 'Чекпоинт 0 / ' + trialCheckpoints.length;
-    }
-    if (trialCheckpoints.length > 0) {
-      var nextCp = trialCheckpoints[trialCurrentIndex];
-      var dx = playerPos.x - nextCp.x;
-      var dy = playerPos.y - nextCp.y;
-      var dz = playerPos.z - nextCp.z;
-      if (dx*dx + dy*dy + dz*dz < 9) {
+  // ---- Trials: labyrinth logic ----
+  if (currentActiveGame === 'trials') {
+    // Checkpoint rings progression
+    if (trialCheckpoints.length && trialCurrentIndex < trialCheckpoints.length) {
+      var cd = trialCheckpoints[trialCurrentIndex];
+      var cdx = playerPos.x - cd.x;
+      var cdz = playerPos.z - cd.z;
+      if (cdx * cdx + cdz * cdz < 12) {
         trialCurrentIndex++;
-        var hud = document.getElementById('trial-hud');
-        if (trialCurrentIndex >= trialCheckpoints.length) {
-          trialCompleted = true;
-          if (hud) hud.innerText = 'ИСПЫТАНИЕ ПРОЙДЕНО!';
-        } else if (hud) {
-          hud.innerText = 'Чекпоинт ' + trialCurrentIndex + ' / ' + trialCheckpoints.length;
+        var hudCp = document.getElementById('trial-hud');
+        if (hudCp) {
+          hudCp.innerText = trialCurrentIndex >= trialCheckpoints.length
+            ? 'Иди к золотому столбу!'
+            : 'Чекпоинт ' + trialCurrentIndex + ' / ' + trialCheckpoints.length;
         }
+      }
+    }
+    // Win when reaching the goal pillar
+    if (!trialCompleted) {
+      var gx = trialGoalPos.x - playerPos.x;
+      var gz = trialGoalPos.z - playerPos.z;
+      if (gx * gx + gz * gz < 9) {
+        trialCompleted = true;
+        var hudWin = document.getElementById('trial-hud');
+        if (hudWin) hudWin.innerText = 'ЛАБИРИНТ ПРОЙДЕН!';
       }
     }
   }
@@ -617,7 +764,11 @@ function updateGamepadMovement() {
   lastL2 = gp.l2;
   lastR2 = gp.r2;
 
-  sessionRef.update({ pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z } });
+  // Echo suppression: don't fight over the same pos with the other device
+  if (!posSameAsWritten(playerPos.x, playerPos.y, playerPos.z, 0.001)) {
+    lastWrittenPos = { x: playerPos.x, y: playerPos.y, z: playerPos.z };
+    sessionRef.update({ pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z } });
+  }
 }
 
 function animatePC() {
@@ -649,7 +800,7 @@ function startVRGameEngine() {
     var hud = document.getElementById('trial-hud');
     if (hud) {
       hud.style.display = 'block';
-      hud.innerText = 'Чекпоинт 0 / 5';
+      hud.innerText = 'Найди выход из лабиринта!';
     }
   }
 
@@ -766,7 +917,8 @@ function animateVR() {
     move.addScaledVector(right, joy.x);
     move.normalize().multiplyScalar(14 * 0.016);
     playerPos.add(move);
-    if (sessionRef && isPlaying) {
+    if (sessionRef && isPlaying && !posSameAsWritten(playerPos.x, playerPos.y, playerPos.z, 0.001)) {
+      lastWrittenPos = { x: playerPos.x, y: playerPos.y, z: playerPos.z };
       sessionRef.update({ pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z } });
     }
   }
