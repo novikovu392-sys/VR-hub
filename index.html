@@ -5,12 +5,12 @@
 <title>VR Hub - City</title>
 <style>
 body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; user-select: none; }
-#menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #111; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; color: #fff; text-align: center; padding: 20px; }
+#menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #111; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; color: #fff; text-align: center; padding: 20px; pointer-events: auto; }
 #menu h1 { font-size: 36px; margin-bottom: 20px; color: #4aa3df; }
-.btn { padding: 15px 30px; font-size: 20px; background: #4aa3df; color: #fff; border: none; border-radius: 8px; cursor: pointer; margin: 10px; }
+.btn { padding: 15px 30px; font-size: 20px; background: #4aa3df; color: #fff; border: none; border-radius: 8px; cursor: pointer; margin: 10px; pointer-events: auto; z-index: 101; }
 .btn:hover { background: #357abd; }
-#fullscreenBtn { position: absolute; top: 20px; right: 20px; z-index: 20; padding: 10px 20px; font-size: 16px; background: #333; color: #fff; border: 1px solid #555; border-radius: 6px; cursor: pointer; }
-#vr-container { width: 100vw; height: 100vh; display: none; position: relative; }
+#fullscreenBtn { position: absolute; top: 20px; right: 20px; z-index: 200; padding: 10px 20px; font-size: 16px; background: #333; color: #fff; border: 1px solid #555; border-radius: 6px; cursor: pointer; pointer-events: auto; }
+#vr-container { width: 100vw; height: 100vh; display: none; position: relative; z-index: 1; }
 #left-view { position: absolute; top: 0; left: 0; width: 50%; height: 100%; overflow: hidden; }
 #right-view { position: absolute; top: 0; right: 0; width: 50%; height: 100%; overflow: hidden; }
 </style>
@@ -18,12 +18,12 @@ body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; u
 </head>
 <body>
 
-<button id="fullscreenBtn" onclick="toggleFullscreen()">На весь экран</button>
+<button id="fullscreenBtn" type="button" onclick="toggleFullscreen()">На весь экран</button>
 
 <div id="menu">
   <h1>VR Hub: Город</h1>
   <p style="margin-bottom:20px; color:#aaa; max-width:400px;">Держите телефон ровно вертикально и нажмите старт.</p>
-  <button class="btn" onclick="startGame()">Начать VR игру</button>
+  <button class="btn" type="button" onclick="startGame()">Начать VR игру</button>
 </div>
 
 <div id="vr-container">
@@ -39,7 +39,6 @@ let playerPos = new THREE.Vector3(0, 1.7, 10);
 
 let targetQuaternion = new THREE.Quaternion();
 let currentQuaternion = new THREE.Quaternion();
-
 let baseOrientation = null;
 
 function toggleFullscreen() {
@@ -72,7 +71,6 @@ function startGame() {
 function handleOrientation(e) {
   if (e.alpha === null || e.beta === null || e.gamma === null) return;
 
-  // Standard DeviceOrientation to Three.js orientation using DeviceOrientationControls math
   const alpha = THREE.MathUtils.degToRad(e.alpha);
   const beta = THREE.MathUtils.degToRad(e.beta);
   const gamma = THREE.MathUtils.degToRad(e.gamma);
@@ -80,7 +78,7 @@ function handleOrientation(e) {
   const zee = new THREE.Vector3(0, 0, 1);
   const euler = new THREE.Euler();
   const q0 = new THREE.Quaternion();
-  const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // -PI/2 around X
+  const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
 
   euler.set(beta, alpha, -gamma, 'YXZ');
   let q = new THREE.Quaternion().setFromEuler(euler);
