@@ -22,7 +22,7 @@ body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; u
 
 <div id="menu">
   <h1>VR Hub: Город</h1>
-  <p style="margin-bottom:20px; color:#aaa; max-width:400px;">Держите телефон ровно и нажмите старт.</p>
+  <p style="margin-bottom:20px; color:#aaa; max-width:400px;">Нажмите кнопку и держите телефон вертикально перед собой в Cardboard.</p>
   <button class="btn" onclick="startGame()">Начать VR игру</button>
 </div>
 
@@ -40,7 +40,8 @@ let playerPos = new THREE.Vector3(0, 1.7, 10);
 let targetQuaternion = new THREE.Quaternion();
 let currentQuaternion = new THREE.Quaternion();
 
-let baseAlpha = null;
+let baseOrientation = new THREE.Quaternion();
+let isCalibrated = false;
 
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
@@ -72,18 +73,28 @@ function startGame() {
 function handleOrientation(e) {
   if (e.alpha === null || e.beta === null || e.gamma === null) return;
 
-  if (baseAlpha === null) {
-    baseAlpha = e.alpha;
+  // Use raw device orientation quaternion via THREE.DeviceOrientationControls logic
+  const alpha = THREE.MathUtils.degToRad(e.alpha);
+  const beta = THREE.MathUtils.degToRad(e.beta);
+  const gamma = THREE.MathUtils.degToRad(e.gamma);
+
+  const zee = new THREE.Vector3(0, 0, 1);
+  const euler = new THREE.Euler();
+  const q0 = new THREE.Quaternion();
+  const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // -PI/2 around X
+
+  euler.set(beta, alpha, -gamma, 'YXZ');
+  let q = new THREE.Quaternion().setFromEuler(euler);
+  q.multiply(q1);
+  q.multiply(q0.setFromAxisAngle(zee, -window.orientation || 0));
+
+  if (!isCalibrated) {
+    // Capture exact starting pose as the forward vector
+    baseOrientation.copy(q).invert();
+    isCalibrated = true;
   }
 
-  // Perfect Cardboard landscape mapping: Yaw inverted to match natural turn, Pitch inverted for correct up/down
-  let alpha = THREE.MathUtils.degToRad(e.alpha - baseAlpha);
-  let beta = THREE.MathUtils.degToRad(e.beta - 90);
-
-  let qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -alpha);
-  let qPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), beta);
-
-  targetQuaternion.copy(qYaw).multiply(qPitch);
+  targetQuaternion.copy(baseOrientation).multiply(q);
 }
 
 function init3D() {
@@ -178,6 +189,8 @@ function onKeyDown(e) {
   if (e.code === 'KeyA' || e.code === 'ArrowLeft') moveLeft = true;
   if (e.code === 'KeyD' || e.code === 'ArrowRight') moveRight = true;
 }
+
+} // fix bracket
 
 function onKeyUp(e) {
   if (e.code === 'KeyW' || e.code === 'ArrowUp') moveForward = false;
