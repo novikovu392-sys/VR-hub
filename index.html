@@ -170,9 +170,9 @@ function selectRole(r) {
         pcStreamActive = false;
       }
 
-      // When the phone is the one driving movement (city, no PC gamepad),
-      // sync its position + rotation so the PC view follows.
-      if (pcGameActive) return;
+      // Always mirror the phone: whichever side moves writes its position,
+      // and the PC view follows the live stream. Echo is suppressed via
+      // posSameAsWritten, so the PC never fights back over its own writes.
       if (data.quat) {
         currentQuaternion.set(data.quat.x, data.quat.y, data.quat.z, data.quat.w);
       }
@@ -516,17 +516,10 @@ function initPCStreamScene() {
 
 let gamepadMoveSpeed = 14;
 let pcGameActive = false;
-let pcMoveYaw = 0;
 
-// PC movement is LOCAL (pcMoveYaw), not tied to the phone's sensors.
-// In the trials pcMoveYaw = PI, so the gamepad W faces INTO the maze.
-function getPcMoveBasis() {
-  var yaw = pcMoveYaw;
-  var forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
-  var right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
-  return { forward: forward, right: right };
-}
-
+// PC gamepad movement: the PC gamepad is the ONE authority for position.
+// Both cameras (PC and phone) follow playerPos, so moving on the PC
+// instantly shows up on the phone and vice versa via live DB sync.
 function updateGamepadMovement() {
   if (!pcGameActive || !sessionRef) return;
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -534,10 +527,8 @@ function updateGamepadMovement() {
   for (let i = 0; i < pads.length; i++) {
     const pad = pads[i];
     if (pad && pad.connected) {
-      // Left stick: axes 0 (X) and 1 (Y)
       stickX = pad.axes[0] || 0;
       stickY = pad.axes[1] || 0;
-      // Cross-key fallback if stick is dead
       if (Math.abs(stickX) < 0.15 && Math.abs(stickY) < 0.15) {
         const up = pad.buttons[12] ? (pad.buttons[12].pressed ? 1 : 0) : 0;
         const down = pad.buttons[13] ? (pad.buttons[13].pressed ? -1 : 0) : 0;
@@ -551,13 +542,15 @@ function updateGamepadMovement() {
   }
   if (Math.abs(stickX) < 0.15 && Math.abs(stickY) < 0.15) return;
 
-  var basis = getPcMoveBasis();
+  var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+  var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
+  forward.y = 0; forward.normalize();
+  right.y = 0; right.normalize();
   var move = new THREE.Vector3();
-  move.addScaledVector(basis.forward, -stickY);
-  move.addScaledVector(basis.right, stickX);
+  move.addScaledVector(forward, -stickY);
+  move.addScaledVector(right, stickX);
   move.normalize().multiplyScalar(gamepadMoveSpeed * 0.016);
 
-  // Maze wall collision (only in trials)
   if (currentActiveGame === 'trials' && mazeWalls.length) {
     var tryX = playerPos.x + move.x;
     var tryZ = playerPos.z + move.z;
@@ -567,10 +560,8 @@ function updateGamepadMovement() {
     playerPos.add(move);
   }
 
-  // Trials progression checks
   checkTrialsProgress();
 
-  // Echo suppression: don't read back / fight over our own position
   if (!posSameAsWritten(playerPos.x, playerPos.y, playerPos.z, 0.001)) {
     lastWrittenPos = { x: playerPos.x, y: playerPos.y, z: playerPos.z };
     sessionRef.update({ pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z } });
@@ -583,15 +574,12 @@ function animatePC() {
 
   if (!pcRenderer || !pcCamera) return;
 
+  // The PC gamepad is the movement authority when it's connected; the phone
+  // mirrors position. If the gamepad lives on the phone, the phone writes its
+  // pos and the PC listener mirrors it here. Either way the PC view follows.
   updateGamepadMovement();
 
-  if (pcGameActive) {
-    // PC camera faces the same direction as W walks, so the view matches movement
-    currentQuaternion.setFromEuler(new THREE.Euler(0, pcMoveYaw, 0, 'YXZ'));
-    pcCamera.position.copy(playerPos);
-    pcCamera.quaternion.copy(currentQuaternion);
-  } else if (pcStreamActive) {
-    currentQuaternion.slerp(targetQuaternion, 0.25);
+  if (pcStreamActive) {
     pcCamera.position.copy(playerPos);
     pcCamera.quaternion.copy(currentQuaternion);
   } else {
