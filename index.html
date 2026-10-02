@@ -60,6 +60,7 @@
       <p style="margin:5px 0 0 0; color:#4aa3df; font-size:16px;" id="pc-code-display">Код: ----</p>
     </div>
     <div class="right">
+      <button class="btn btn-sec" onclick="togglePcFullscreen()" id="pcFsBtn">Полный экран</button>
       <button class="btn btn-danger" onclick="exitGameFromPC()" id="pcExitBtn">Выйти из игры</button>
     </div>
   </div>
@@ -70,6 +71,11 @@
         <h3>Город VR</h3>
         <p>Синхронный мегаполис со стационарными домами.</p>
         <button class="btn" onclick="launchGame('city')">Запустить</button>
+      </div>
+      <div class="game-card">
+        <h3>Майнкрафт</h3>
+        <p>Строительство блоков, разрушение на L2/R2, прыжки на X.</p>
+        <button class="btn" onclick="launchGame('minecraft')">Запустить</button>
       </div>
     </div>
     <div id="pc-view-container"></div>
@@ -185,6 +191,7 @@ function joinSession() {
         const val = snap.val();
         if (!val) return;
         if (val.status === 'playing' && !isPlaying) {
+          currentActiveGame = val.game || 'city';
           startVRGameEngine();
         } else if (val.status === 'menu' && isPlaying) {
           stopVRGameEngine();
@@ -197,6 +204,10 @@ function joinSession() {
         if (isPlaying && val.quat) {
           targetQuaternion.set(val.quat.x, val.quat.y, val.quat.z, val.quat.w);
         }
+        // Sync Minecraft blocks so the phone renders them
+        if (isPlaying && currentActiveGame === 'minecraft' && val.blocks && scene) {
+          syncMinecraftBlocks(val.blocks);
+        }
       });
     } else {
       document.getElementById('phone-status').innerText = 'Сессия не найдена!';
@@ -204,11 +215,110 @@ function joinSession() {
   });
 }
 
+let currentActiveGame = 'city';
+let minecraftBlocks = [];
+let raycaster = new THREE.Raycaster();
+let blockGeo = new THREE.BoxGeometry(2, 2, 2);
+let blockMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
+let highlightBox = null;
+let playerVelY = 0;
+let isGrounded = false;
+
+function initMinecraftEnvironment(sceneTarget) {
+  sceneTarget.background = new THREE.Color(0xa0e0ff);
+  sceneTarget.fog = new THREE.Fog(0xa0e0ff, 100, 400);
+
+  var sun = new THREE.DirectionalLight(0xffffff, 1.0);
+  sun.position.set(50, 200, 50);
+  sceneTarget.add(sun);
+  sceneTarget.add(new THREE.AmbientLight(0xffffff, 0.6));
+
+  // Platform
+  var ground = new THREE.Mesh(
+    new THREE.BoxGeometry(200, 2, 200),
+    new THREE.MeshStandardMaterial({ color: 0x55aa55 })
+  );
+  ground.position.set(0, -1, 0);
+  sceneTarget.add(ground);
+
+  // Highlight box for targeted building/destroying
+  var wireGeo = new THREE.BoxGeometry(2.05, 2.05, 2.05);
+  var wireMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
+  highlightBox = new THREE.Mesh(wireGeo, wireMat);
+  highlightBox.visible = false;
+  sceneTarget.add(highlightBox);
+
+  // Clear/init blocks
+  minecraftBlocks = [];
+}
+
+function syncMinecraftBlocks(blocks) {
+  if (!scene) return;
+  // Remove all existing non-base, non-highlight meshes
+  var toRemove = [];
+  scene.children.forEach(function(o) {
+    if (o.isMesh && o !== highlightBox && !(o.geometry && o.geometry.parameters && o.geometry.parameters.width === 200)) {
+      toRemove.push(o);
+    }
+  });
+  toRemove.forEach(function(o) { scene.remove(o); });
+
+  // Re-add from synced data
+  (blocks || []).forEach(function(b) {
+    var m = new THREE.Mesh(blockGeo, blockMat);
+    m.position.set(b.x, b.y, b.z);
+    scene.add(m);
+  });
+}
+
+function getGamepadControls() {
+  var pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (var i = 0; i < pads.length; i++) {
+    var gp = pads[i];
+    if (gp && gp.connected) {
+      var ax = gp.axes[0] || 0;
+      var ay = gp.axes[1] || 0;
+      if (Math.abs(ax) < 0.15) ax = 0;
+      if (Math.abs(ay) < 0.15) ay = 0;
+      
+      // Buttons:
+      // 0: X (cross / bottom button)
+      // 6: L2, 7: R2
+      var xPressed = gp.buttons[0] ? gp.buttons[0].pressed : false;
+      var l2Pressed = gp.buttons[6] ? gp.buttons[6].pressed : (gp.buttons[6] && gp.buttons[6].value > 0.5);
+      var r2Pressed = gp.buttons[7] ? gp.buttons[7].pressed : (gp.buttons[7] && gp.buttons[7].value > 0.5);
+
+      return { x: ax, y: ay, jump: xPressed, l2: l2Pressed, r2: r2Pressed };
+    }
+  }
+  return { x: 0, y: 0, jump: false, l2: false, r2: false };
+}
+
 function launchGame(gameName) {
+  currentActiveGame = gameName;
   if (sessionRef) {
-    sessionRef.update({ status: 'playing', game: gameName });
+    sessionRef.update({ status: 'playing', game: gameName, blocks: [] });
   }
 }
+
+function togglePcFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().then(() => {
+      const btn = document.getElementById('pcFsBtn');
+      if (btn) btn.innerText = 'Свернуть экран';
+    }).catch(()=>{});
+  } else {
+    if (document.exitFullscreen) document.exitFullscreen();
+  }
+}
+
+// Keep the button label in sync every time fullscreen toggles (multi-use)
+document.addEventListener('fullscreenchange', () => {
+  const btn = document.getElementById('pcFsBtn');
+  if (btn) {
+    btn.innerText = document.fullscreenElement ? 'Свернуть экран' : 'Полный экран';
+  }
+});
 
 function exitGameFromPC() {
   if (sessionRef) {
@@ -300,7 +410,11 @@ function initPCStreamScene() {
   const container = document.getElementById('pc-view-container');
   container.innerHTML = '';
   pcScene = new THREE.Scene();
-  buildCityEnvironment(pcScene);
+  if (currentActiveGame === 'minecraft') {
+    initMinecraftEnvironment(pcScene);
+  } else {
+    buildCityEnvironment(pcScene);
+  }
 
   const w = container.clientWidth || window.innerWidth;
   const h = container.clientHeight || window.innerHeight;
@@ -313,40 +427,116 @@ function initPCStreamScene() {
 }
 
 let gamepadMoveSpeed = 14;
+let lastJump = false;
+let lastL2 = false;
+let lastR2 = false;
 
-function updateGamepadMovement() {
-  if (!pcStreamActive || !sessionRef) return;
+function getGamepadInput() {
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-  let stickX = 0, stickY = 0;
   for (let i = 0; i < pads.length; i++) {
     const pad = pads[i];
     if (pad && pad.connected) {
-      // Left stick: axes 0 (X) and 1 (Y)
-      stickX = pad.axes[0] || 0;
-      stickY = pad.axes[1] || 0;
-      // Cross-key fallback if stick is dead
-      if (Math.abs(stickX) < 0.15 && Math.abs(stickY) < 0.15) {
-        const up = pad.buttons[12] ? (pad.buttons[12].pressed ? 1 : 0) : 0;
-        const down = pad.buttons[13] ? (pad.buttons[13].pressed ? -1 : 0) : 0;
-        const left = pad.buttons[14] ? (pad.buttons[14].pressed ? -1 : 0) : 0;
-        const right = pad.buttons[15] ? (pad.buttons[15].pressed ? 1 : 0) : 0;
-        stickY = up + down;
-        stickX = right + left;
-      }
-      break;
+      let sx = pad.axes[0] || 0;
+      let sy = pad.axes[1] || 0;
+      if (Math.abs(sx) < 0.15) sx = 0;
+      if (Math.abs(sy) < 0.15) sy = 0;
+      const xButton = pad.buttons[0] ? pad.buttons[0].pressed : false;
+      const l2 = pad.buttons[6] ? (pad.buttons[6].pressed || pad.buttons[6].value > 0.5) : false;
+      const r2 = pad.buttons[7] ? (pad.buttons[7].pressed || pad.buttons[7].value > 0.5) : false;
+      return { sx, sy, xButton, l2, r2 };
     }
   }
-  if (Math.abs(stickX) < 0.15 && Math.abs(stickY) < 0.15) return;
+  return { sx: 0, sy: 0, xButton: false, l2: false, r2: false };
+}
 
-  var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
-  var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
-  forward.y = 0; forward.normalize();
-  right.y = 0; right.normalize();
-  var move = new THREE.Vector3();
-  move.addScaledVector(forward, -stickY);
-  move.addScaledVector(right, stickX);
-  move.normalize().multiplyScalar(gamepadMoveSpeed * 0.016);
-  playerPos.add(move);
+function updateGamepadMovement() {
+  if (!pcStreamActive || !sessionRef) return;
+  const gp = getGamepadInput();
+
+  // ---- Gravity & jumping (works in both City and Minecraft) ----
+  const groundY = 1.7;
+  if (playerPos.y <= groundY) {
+    playerPos.y = groundY;
+    playerVelY = 0;
+    isGrounded = true;
+  } else {
+    playerVelY -= 0.02;
+    playerPos.y += playerVelY;
+    if (playerPos.y <= groundY) {
+      playerPos.y = groundY;
+      playerVelY = 0;
+      isGrounded = true;
+    }
+  }
+  if (gp.xButton && isGrounded && !lastJump) {
+    playerVelY = 0.4;
+    isGrounded = false;
+  }
+  lastJump = gp.xButton;
+
+  // ---- Movement (left stick) ----
+  if (Math.abs(gp.sx) > 0.15 || Math.abs(gp.sy) > 0.15) {
+    var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+    var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
+    forward.y = 0; forward.normalize();
+    right.y = 0; right.normalize();
+    var move = new THREE.Vector3();
+    move.addScaledVector(forward, -gp.sy);
+    move.addScaledVector(right, gp.sx);
+    move.normalize().multiplyScalar(gamepadMoveSpeed * 0.016);
+    playerPos.add(move);
+    if (playerPos.y < groundY) playerPos.y = groundY;
+  }
+
+  // ---- Minecraft: place (R2) / destroy (L2) ----
+  if (currentActiveGame === 'minecraft' && pcScene) {
+    raycaster.setFromCamera(new THREE.Vector2(0, 0), pcCamera);
+    var objectsToCheck = pcScene.children.filter(function(o) { return o.isMesh && o !== highlightBox; });
+    var intersects = raycaster.intersectObjects(objectsToCheck);
+
+    if (intersects.length > 0) {
+      var hit = intersects[0];
+      if (hit.distance < 20) {
+        highlightBox.position.copy(hit.object.position);
+        highlightBox.visible = true;
+
+        // R2 -> place block on the face that was hit
+        if (gp.r2 && !lastR2) {
+          var normal = hit.face.normal.clone();
+          normal.transformDirection(hit.object.matrixWorld);
+          var newPos = hit.object.position.clone().add(normal.clone().multiplyScalar(2));
+          var newBlock = new THREE.Mesh(blockGeo, blockMat);
+          newBlock.position.copy(newPos);
+          pcScene.add(newBlock);
+          minecraftBlocks.push({ x: newPos.x, y: newPos.y, z: newPos.z });
+          sessionRef.update({ blocks: minecraftBlocks });
+        }
+
+        // L2 -> destroy the block (but not the base platform)
+        if (gp.l2 && !lastL2) {
+          var isBase = hit.object.geometry && hit.object.geometry.parameters && hit.object.geometry.parameters.width === 200;
+          if (!isBase) {
+            pcScene.remove(hit.object);
+            minecraftBlocks = minecraftBlocks.filter(function(b) {
+              return Math.abs(b.x - hit.object.position.x) > 0.1 ||
+                     Math.abs(b.y - hit.object.position.y) > 0.1 ||
+                     Math.abs(b.z - hit.object.position.z) > 0.1;
+            });
+            sessionRef.update({ blocks: minecraftBlocks });
+            highlightBox.visible = false;
+          }
+        }
+      } else {
+        highlightBox.visible = false;
+      }
+    } else {
+      highlightBox.visible = false;
+    }
+  }
+
+  lastL2 = gp.l2;
+  lastR2 = gp.r2;
+
   sessionRef.update({ pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z } });
 }
 
@@ -401,7 +591,11 @@ function stopVRGameEngine() {
 
 function initVR3D() {
   scene = new THREE.Scene();
-  buildCityEnvironment(scene);
+  if (currentActiveGame === 'minecraft') {
+    initMinecraftEnvironment(scene);
+  } else {
+    buildCityEnvironment(scene);
+  }
 
   var leftView = document.getElementById('left-view');
   var rightView = document.getElementById('right-view');
