@@ -22,8 +22,8 @@ body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; u
 
 <div id="menu">
   <h1>VR Hub: Город</h1>
-  <p style="margin-bottom:20px; color:#aaa; max-width:400px;">Держите телефон ровно перед собой. Нажмите кнопку для старта.</p>
-  <button class="btn" onclick="startGame()">Начать VR игру</button>
+  <p style="margin-bottom:20px; color:#aaa; max-width:400px;">Нажмите кнопку, глядя прямо перед собой в Cardboard.</p>
+  <button class="btn" onclick="startGame()">Калибровать и войти</button>
 </div>
 
 <div id="vr-container">
@@ -40,10 +40,9 @@ let playerPos = new THREE.Vector3(0, 1.7, 10);
 let targetQuaternion = new THREE.Quaternion();
 let currentQuaternion = new THREE.Quaternion();
 
-// Calibration offsets
-let calibAlpha = null;
-let calibBeta = null;
-let calibGamma = null;
+// Calibration reference quaternions
+let baseOrientation = new THREE.Quaternion();
+let isCalibrated = false;
 
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
@@ -75,16 +74,9 @@ function startGame() {
 function handleOrientation(e) {
   if (e.alpha === null || e.beta === null || e.gamma === null) return;
 
-  if (calibAlpha === null) {
-    calibAlpha = e.alpha;
-    // Offset beta to 45 deg viewing angle so phone is held comfortably flat/tilted
-    calibBeta = e.beta - 45;
-    calibGamma = e.gamma;
-  }
-
-  let alpha = THREE.MathUtils.degToRad(e.alpha - calibAlpha);
-  let beta = THREE.MathUtils.degToRad(e.beta - calibBeta);
-  let gamma = THREE.MathUtils.degToRad(e.gamma - calibGamma);
+  const alpha = THREE.MathUtils.degToRad(e.alpha);
+  const beta = THREE.MathUtils.degToRad(e.beta);
+  const gamma = THREE.MathUtils.degToRad(e.gamma);
 
   const zee = new THREE.Vector3(0, 0, 1);
   const kamer = new THREE.Euler();
@@ -92,9 +84,18 @@ function handleOrientation(e) {
   const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
 
   kamer.set(beta, alpha, -gamma, 'YXZ');
-  targetQuaternion.setFromEuler(kamer);
-  targetQuaternion.multiply(q1);
-  targetQuaternion.multiply(q0.setFromAxisAngle(zee, -window.orientation || 0));
+  let rawQ = new THREE.Quaternion().setFromEuler(kamer);
+  rawQ.multiply(q1);
+  rawQ.multiply(q0.setFromAxisAngle(zee, -window.orientation || 0));
+
+  if (!isCalibrated) {
+    // Instant zero calibration on start click: current pose becomes forward (identity relative)
+    baseOrientation.copy(rawQ).invert();
+    isCalibrated = true;
+  }
+
+  // Relative rotation from calibration pose
+  targetQuaternion.copy(baseOrientation).multiply(rawQ);
 }
 
 function init3D() {
@@ -123,14 +124,12 @@ function init3D() {
   dirLight.position.set(50, 200, 50);
   scene.add(dirLight);
 
-  // Ground / Roads grid
   const floorGeo = new THREE.PlaneGeometry(600, 600);
   const floorMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI / 2;
   scene.add(floor);
 
-  // Add asphalt roads grid
   const roadMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
   for (let i = -250; i <= 250; i += 40) {
     const roadX = new THREE.Mesh(new THREE.PlaneGeometry(12, 600), roadMat);
@@ -147,12 +146,9 @@ function init3D() {
   const boxGeo = new THREE.BoxGeometry(1, 1, 1);
   const colors = [0x555555, 0x666677, 0x776666, 0x445566, 0x665544];
 
-  // Spacious city grid with blocks and wide streets
   for (let x = -240; x <= 240; x += 40) {
     for (let z = -240; z <= 240; z += 40) {
       if (Math.abs(x) < 20 && Math.abs(z) < 20) continue;
-      
-      // Create 4 buildings per block separated by alleys
       const offsets = [-10, 10];
       for (let ox of offsets) {
         for (let oz of offsets) {
@@ -250,18 +246,19 @@ function animate() {
   requestAnimationFrame(animate);
 
   updateMovement();
+  pollCalibration = true;
   pollGamepad();
 
-  currentQuaternion.slerp(targetQuaternion, 0.1);
+  currentQuaternion.slerp(targetQuaternion, 0.15);
 
   let ipd = 0.032;
   let eyeOffsetL = new THREE.Vector3(-ipd, 0, 0).applyQuaternion(currentQuaternion);
-  let eyeOffsetR = new THREE.Vector3(ipd, 0, 0).applyQuaternion(currentInitializer || currentQuaternion);
+  let eyeOffsetR = new THREE.Vector3(ipd, 0, 0).applyQuaternion(currentQuaternion);
 
   cameraL.position.copy(playerPos).add(eyeOffsetL);
   cameraL.quaternion.copy(currentQuaternion);
 
-  cameraR.position.copy(playerPos).add(new THREE.Vector3(ipd, 0, 0).applyQuaternion(currentQuaternion));
+  cameraR.position.copy(playerPos).add(eyeOffsetR);
   cameraR.quaternion.copy(currentQuaternion);
 
   rendererL.render(scene, cameraL);
