@@ -76,6 +76,8 @@
   </div>
 </div>
 
+<button id="phoneFsButton" onclick="phoneRequestFullscreen()" style="display:none; position:absolute; bottom:50px; left:50%; transform:translateX(-50%); z-index:3000; padding:18px 30px; font-size:18px; font-weight:bold; color:#fff; background:#4aa3df; border:none; border-radius:12px; cursor:pointer;">Нажмите для полного экрана</button>
+
 <div id="vr-container">
   <div id="left-view"></div>
   <div id="right-view"></div>
@@ -220,10 +222,11 @@ function exitGameFromPC() {
 }
 
 function pcTogglePhoneFullscreen() {
-  pcFsState = !pcFsState;
-  updateFsButton(pcFsState);
   if (sessionRef) {
-    sessionRef.update({ fs: pcFsState });
+    sessionRef.once('value', (snap) => {
+      const cur = snap.val() ? !!snap.val().fs : false;
+      sessionRef.update({ fs: !cur });
+    });
   }
 }
 
@@ -232,6 +235,25 @@ function updateFsButton(fsState) {
   const btn = document.getElementById('pcFsBtn');
   if (btn) {
     btn.innerText = fsState ? 'Отключить полный экран' : 'На весь экран (телефон)';
+  }
+}
+
+function phoneRequestFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(()=>{});
+  } else {
+    if (document.exitFullscreen) document.exitFullscreen();
+  }
+}
+
+// Keep Firebase fs flag in sync with the phone's ACTUAL fullscreen state
+function bindPhoneFullscreenSync() {
+  if (document.addEventListener) {
+    document.addEventListener('fullscreenchange', () => {
+      if (sessionRef && role === 'phone') {
+        sessionRef.update({ fs: !!document.fullscreenElement });
+      }
+    });
   }
 }
 
@@ -353,6 +375,7 @@ function animatePC() {
 function startVRGameEngine() {
   document.getElementById('ui-layer').style.display = 'none';
   document.getElementById('vr-container').style.display = 'block';
+  document.getElementById('phoneFsButton').style.display = 'block';
   isPlaying = true;
 
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -365,10 +388,12 @@ function startVRGameEngine() {
 
   initVR3D();
   animateVR();
+  bindPhoneFullscreenSync();
 }
 
 function stopVRGameEngine() {
   isPlaying = false;
+  document.getElementById('phoneFsButton').style.display = 'none';
   document.getElementById('vr-container').style.display = 'none';
   document.getElementById('ui-layer').style.display = 'flex';
   document.getElementById('step-role').style.display = 'none';
