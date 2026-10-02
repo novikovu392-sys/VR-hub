@@ -1,18 +1,20 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>VR Hub - City</title>
 <style>
-body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; user-select: none; }
-#menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #111; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; color: #fff; text-align: center; padding: 20px; }
-#menu h1 { font-size: 36px; margin-bottom: 20px; color: #4aa3df; }
-.btn { padding: 15px 30px; font-size: 20px; background: #4aa3df; color: #fff; border: none; border-radius: 8px; cursor: pointer; margin: 10px; }
-.btn:hover { background: #357abd; }
-#fullscreenBtn { position: absolute; top: 20px; right: 20px; z-index: 20; padding: 10px 20px; font-size: 16px; background: #333; color: #fff; border: 1px solid #555; border-radius: 6px; cursor: pointer; }
-#vr-container { width: 100vw; height: 100vh; display: none; position: relative; }
-#left-view { position: absolute; top: 0; left: 0; width: 50%; height: 100%; overflow: hidden; }
-#right-view { position: absolute; top: 0; right: 0; width: 50%; height: 100%; overflow: hidden; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #87ceeb; font-family: sans-serif; user-select: none; -webkit-user-select: none; }
+  #menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #111; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; color: #fff; text-align: center; padding: 20px; pointer-events: auto; }
+  #menu h1 { font-size: 30px; margin-bottom: 10px; color: #4aa3df; }
+  #menu p { color: #aaa; max-width: 380px; margin-bottom: 30px; font-size: 15px; line-height: 1.45; }
+  .btn { padding: 16px 34px; font-size: 20px; color: #fff; background: #4aa3df; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; display: inline-block; }
+  .btn:active { background: #357abd; }
+  #fullscreenBtn { position: absolute; top: 16px; right: 16px; z-index: 2000; padding: 10px 18px; font-size: 14px; color: #fff; background: rgba(40,40,40,0.85); border: 1px solid #666; border-radius: 8px; cursor: pointer; }
+  #vr-container { width: 100vw; height: 100vh; display: none; position: relative; z-index: 10; }
+  #left-view { position: absolute; top: 0; left: 0; width: 50%; height: 100%; overflow: hidden; }
+  #right-view { position: absolute; top: 0; right: 0; width: 50%; height: 100%; overflow: hidden; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -22,7 +24,7 @@ body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; u
 
 <div id="menu">
   <h1>VR Hub: Город</h1>
-  <p style="margin-bottom:20px; color:#aaa; max-width:400px;">Держите телефон ровно перед собой. Нажмите кнопку для старта.</p>
+  <p>Вставьте телефон в Cardboard, нажмите кнопку и смотрите прямо.</p>
   <button class="btn" onclick="startGame()">Начать VR игру</button>
 </div>
 
@@ -39,25 +41,19 @@ let playerPos = new THREE.Vector3(0, 1.7, 10);
 
 let targetQuaternion = new THREE.Quaternion();
 let currentQuaternion = new THREE.Quaternion();
-
-// Calibration offsets
-let calibAlpha = null;
-let calibBeta = null;
-let calibGamma = null;
+let baseQuaternion = null;
 
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().catch(err => {});
+    document.documentElement.requestFullscreen().catch(function(){});
   } else {
-    if (document.exitFullscreen) {
-      document.exitFullscreen();
-    }
+    if (document.exitFullscreen) document.exitFullscreen();
   }
 }
 
 function startGame() {
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    DeviceOrientationEvent.requestPermission().then(response => {
+    DeviceOrientationEvent.requestPermission().then(function(response) {
       if (response === 'granted') {
         window.addEventListener('deviceorientation', handleOrientation, true);
       }
@@ -72,99 +68,125 @@ function startGame() {
   init3D();
 }
 
+function getScreenAngle() {
+  if (window.screen && screen.orientation && typeof screen.orientation.angle === 'number') {
+    return screen.orientation.angle;
+  }
+  return window.orientation || 0;
+}
+
+// Canonical Cardboard/three.js device-orientation -> world quaternion
+function deviceQuaternion(alphaDeg, betaDeg, gammaDeg) {
+  var alpha = THREE.MathUtils.degToRad(alphaDeg);
+  var beta = THREE.MathUtils.degToRad(betaDeg);
+  var gamma = THREE.MathUtils.degToRad(gammaDeg);
+
+  var zee = new THREE.Vector3(0, 0, 1);
+  var euler = new THREE.Euler();
+  var q0 = new THREE.Quaternion();
+  var q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // -90 deg around X
+
+  euler.set(beta, alpha, -gamma, 'YXZ');
+  var q = new THREE.Quaternion().setFromEuler(euler);
+  q.multiply(q1);
+  q.multiply(q0.setFromAxisAngle(zee, -getScreenAngle()));
+
+  return q;
+}
+
 function handleOrientation(e) {
   if (e.alpha === null || e.beta === null || e.gamma === null) return;
 
-  if (calibAlpha === null) {
-    calibAlpha = e.alpha;
-    // Offset beta to 45 deg viewing angle so phone is held comfortably flat/tilted
-    calibBeta = e.beta - 45;
-    calibGamma = e.gamma;
+  var q = deviceQuaternion(e.alpha, e.beta, e.gamma);
+
+  if (!baseQuaternion) {
+    baseQuaternion = q.clone().invert();
   }
 
-  let alpha = THREE.MathUtils.degToRad(e.alpha - calibAlpha);
-  let beta = THREE.MathUtils.degToRad(e.beta - calibBeta);
-  let gamma = THREE.MathUtils.degToRad(e.gamma - calibGamma);
+  targetQuaternion.copy(baseQuaternion).multiply(q);
 
-  const zee = new THREE.Vector3(0, 0, 1);
-  const kamer = new THREE.Euler();
-  const q0 = new THREE.Quaternion();
-  const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
-
-  kamer.set(beta, alpha, -gamma, 'YXZ');
-  targetQuaternion.setFromEuler(kamer);
-  targetQuaternion.multiply(q1);
-  targetQuaternion.multiply(q0.setFromAxisAngle(zee, -window.orientation || 0));
+  // Strip roll so the horizon stays level no matter how you tilt the phone
+  var euler = new THREE.Euler().setFromQuaternion(targetQuaternion, 'YXZ');
+  var yaw = euler.y;
+  var pitch = euler.x;
+  targetQuaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
 }
 
 function init3D() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87ceeb);
-  scene.fog = new THREE.FogExp2(0x87ceeb, 0.012);
+  scene.fog = new THREE.Fog(0x87ceeb, 120, 600);
 
-  const aspect = (window.innerWidth / 2) / window.innerHeight;
-  cameraL = new THREE.PerspectiveCamera(70, aspect, 0.1, 1000);
-  cameraR = new THREE.PerspectiveCamera(70, aspect, 0.1, 1000);
+  var aspect = (window.innerWidth / 2) / window.innerHeight;
+  cameraL = new THREE.PerspectiveCamera(75, aspect, 0.1, 2000);
+  cameraR = new THREE.PerspectiveCamera(75, aspect, 0.1, 2000);
+
+  var leftView = document.getElementById('left-view');
+  var rightView = document.getElementById('right-view');
+  var halfW = leftView.clientWidth;
+  var fullH = leftView.clientHeight;
 
   rendererL = new THREE.WebGLRenderer({ antialias: true });
-  rendererL.setSize(window.innerWidth / 2, window.innerHeight);
-  rendererL.setPixelRatio(window.devicePixelRatio);
-  document.getElementById('left-view').appendChild(rendererL.domElement);
+  rendererL.setSize(halfW, fullH);
+  rendererL.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  rendererL.domElement.style.width = '100%';
+  rendererL.domElement.style.height = '100%';
+  leftView.appendChild(rendererL.domElement);
 
   rendererR = new THREE.WebGLRenderer({ antialias: true });
-  rendererR.setSize(window.innerWidth / 2, window.innerHeight);
-  rendererR.setPixelRatio(window.devicePixelRatio);
-  document.getElementById('right-view').appendChild(rendererR.domElement);
+  rendererR.setSize(halfW, fullH);
+  rendererR.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  rendererR.domElement.style.width = '100%';
+  rendererR.domElement.style.height = '100%';
+  rightView.appendChild(rendererR.domElement);
 
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-  scene.add(ambientLight);
+  var sun = new THREE.DirectionalLight(0xffffff, 1.0);
+  sun.position.set(80, 200, 60);
+  scene.add(sun);
 
-  const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
-  dirLight.position.set(50, 200, 50);
-  scene.add(dirLight);
+  var ambient = new THREE.AmbientLight(0xffffff, 0.7);
+  scene.add(ambient);
 
-  // Ground / Roads grid
-  const floorGeo = new THREE.PlaneGeometry(600, 600);
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
-  const floor = new THREE.Mesh(floorGeo, floorMat);
-  floor.rotation.x = -Math.PI / 2;
-  scene.add(floor);
+  // Light ground so "looking down" never goes black
+  var ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(1200, 1200),
+    new THREE.MeshStandardMaterial({ color: 0x9aa3ab })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  scene.add(ground);
 
-  // Add asphalt roads grid
-  const roadMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
-  for (let i = -250; i <= 250; i += 40) {
-    const roadX = new THREE.Mesh(new THREE.PlaneGeometry(12, 600), roadMat);
-    roadX.rotation.x = -Math.PI / 2;
-    roadX.position.set(i, 0.01, 0);
-    scene.add(roadX);
+  // Roads grid
+  var roadMat = new THREE.MeshStandardMaterial({ color: 0x555b63 });
+  for (var i = -400; i <= 400; i += 80) {
+    var roadA = new THREE.Mesh(new THREE.PlaneGeometry(14, 1200), roadMat);
+    roadA.rotation.x = -Math.PI / 2;
+    roadA.position.set(i, 0.02, 0);
+    scene.add(roadA);
 
-    const roadZ = new THREE.Mesh(new THREE.PlaneGeometry(600, 12), roadMat);
-    roadZ.rotation.x = -Math.PI / 2;
-    roadZ.position.set(0, 0.01, i);
-    scene.add(roadZ);
+    var roadB = new THREE.Mesh(new THREE.PlaneGeometry(1200, 14), roadMat);
+    roadB.rotation.x = -Math.PI / 2;
+    roadB.position.set(0, 0.02, i);
+    scene.add(roadB);
   }
 
-  const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-  const colors = [0x555555, 0x666677, 0x776666, 0x445566, 0x665544];
+  // Buildings — dense, tall, colorful so every direction shows content
+  var boxGeo = new THREE.BoxGeometry(1, 1, 1);
+  var colors = [0x7d8590, 0x8a93a3, 0x9a8f86, 0x6f7d92, 0x86796f, 0x9aa0a8];
 
-  // Spacious city grid with blocks and wide streets
-  for (let x = -240; x <= 240; x += 40) {
-    for (let z = -240; z <= 240; z += 40) {
-      if (Math.abs(x) < 20 && Math.abs(z) < 20) continue;
-      
-      // Create 4 buildings per block separated by alleys
-      const offsets = [-10, 10];
-      for (let ox of offsets) {
-        for (let oz of offsets) {
-          const bx = x + ox;
-          const bz = z + oz;
-          const h = Math.random() * 50 + 15;
-          const mat = new THREE.MeshStandardMaterial({ color: colors[Math.floor(Math.random() * colors.length)] });
-          const building = new THREE.Mesh(boxGeo, mat);
-          building.scale.set(16, h, 16);
-          building.position.set(bx, h / 2, bz);
-          scene.add(building);
-        }
+  for (var x = -380; x <= 380; x += 80) {
+    for (var z = -380; z <= 380; z += 80) {
+      if (Math.abs(x) < 40 && Math.abs(z) < 40) continue; // spawn area clear
+
+      var spots = [[x-20,z-20],[x-20,z+20],[x+20,z-20],[x+20,z+20]];
+      for (var s = 0; s < spots.length; s++) {
+        var bx = spots[s][0];
+        var bz = spots[s][1];
+        var h = Math.random() * 70 + 25;
+        var mat = new THREE.MeshStandardMaterial({ color: colors[Math.floor(Math.random() * colors.length)] });
+        var building = new THREE.Mesh(boxGeo, mat);
+        building.scale.set(24, h, 24);
+        building.position.set(bx, h / 2, bz);
+        scene.add(building);
       }
     }
   }
@@ -178,13 +200,14 @@ function init3D() {
 
 function onWindowResize() {
   if (!isPlaying) return;
-  const w = window.innerWidth / 2;
-  const h = window.innerHeight;
-  rendererL.setSize(w, h);
-  rendererR.setSize(w, h);
-  cameraL.aspect = w / h;
+  var leftView = document.getElementById('left-view');
+  var halfW = leftView.clientWidth;
+  var fullH = leftView.clientHeight;
+  rendererL.setSize(halfW, fullH);
+  rendererR.setSize(halfW, fullH);
+  cameraL.aspect = halfW / fullH;
   cameraL.updateProjectionMatrix();
-  cameraR.aspect = w / h;
+  cameraR.aspect = halfW / fullH;
   cameraR.updateProjectionMatrix();
 }
 
@@ -203,43 +226,38 @@ function onKeyUp(e) {
 }
 
 function updateMovement() {
-  let speed = 0.2;
-  let forwardDir = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
-  forwardDir.y = 0;
-  forwardDir.normalize();
-  let rightDir = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
-  rightDir.y = 0;
-  rightDir.normalize();
+  var speed = 0.25;
+  var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+  forward.y = 0; forward.normalize();
+  var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
+  right.y = 0; right.normalize();
 
-  let moveVec = new THREE.Vector3();
-  if (moveForward) moveVec.add(forwardDir);
-  if (moveBackward) moveVec.sub(forwardDir);
-  if (moveLeft) moveVec.sub(rightDir);
-  if (moveRight) moveVec.add(rightDir);
-  moveVec.normalize();
+  var mv = new THREE.Vector3();
+  if (moveForward) mv.add(forward);
+  if (moveBackward) mv.sub(forward);
+  if (moveLeft) mv.sub(right);
+  if (moveRight) mv.add(right);
+  if (mv.lengthSq() > 0) mv.normalize();
 
-  playerPos.addScaledVector(moveVec, speed);
-  playerPos.x = Math.max(-280, Math.min(280, playerPos.x));
-  playerPos.z = Math.max(-280, Math.min(280, playerPos.z));
+  playerPos.addScaledVector(mv, speed);
+  playerPos.x = Math.max(-440, Math.min(440, playerPos.x));
+  playerPos.z = Math.max(-440, Math.min(440, playerPos.z));
 }
 
 function pollGamepad() {
-  const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-  for (let i = 0; i < gamepads.length; i++) {
-    const gp = gamepads[i];
+  var gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (var i = 0; i < gamepads.length; i++) {
+    var gp = gamepads[i];
     if (gp) {
-      let ax = gp.axes[0];
-      let ay = gp.axes[1];
+      var ax = gp.axes[0];
+      var ay = gp.axes[1];
       if (Math.abs(ax) > 0.1 || Math.abs(ay) > 0.1) {
-        let forwardDir = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
-        forwardDir.y = 0; forwardDir.normalize();
-        let rightDir = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
-        rightDir.y = 0; rightDir.normalize();
-
-        let moveVec = new THREE.Vector3();
-        moveVec.addScaledVector(forwardDir, -ay);
-        moveVec.addScaledVector(rightDir, ax);
-        playerPos.addScaledVector(moveVec, 0.2);
+        var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+        forward.y = 0; forward.normalize();
+        var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
+        right.y = 0; right.normalize();
+        playerPos.addScaledVector(forward, -ay * 0.25);
+        playerPos.addScaledVector(right, ax * 0.25);
       }
     }
   }
@@ -252,16 +270,16 @@ function animate() {
   updateMovement();
   pollGamepad();
 
-  currentQuaternion.slerp(targetQuaternion, 0.1);
+  currentQuaternion.slerp(targetQuaternion, 0.25);
 
-  let ipd = 0.032;
-  let eyeOffsetL = new THREE.Vector3(-ipd, 0, 0).applyQuaternion(currentQuaternion);
-  let eyeOffsetR = new THREE.Vector3(ipd, 0, 0).applyQuaternion(currentInitializer || currentQuaternion);
+  var ipd = 0.032;
+  var offL = new THREE.Vector3(-ipd, 0, 0).applyQuaternion(currentQuaternion);
+  var offR = new THREE.Vector3(ipd, 0, 0).applyQuaternion(currentQuaternion);
 
-  cameraL.position.copy(playerPos).add(eyeOffsetL);
+  cameraL.position.copy(playerPos).add(offL);
   cameraL.quaternion.copy(currentQuaternion);
 
-  cameraR.position.copy(playerPos).add(new THREE.Vector3(ipd, 0, 0).applyQuaternion(currentQuaternion));
+  cameraR.position.copy(playerPos).add(offR);
   cameraR.quaternion.copy(currentQuaternion);
 
   rendererL.render(scene, cameraL);
