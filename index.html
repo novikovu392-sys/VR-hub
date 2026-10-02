@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>VR Hub - City</title>
 <style>
-  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; user-select: none; -webkit-user-select: none; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #87ceeb; font-family: sans-serif; user-select: none; -webkit-user-select: none; }
   #menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #111; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; color: #fff; text-align: center; padding: 20px; pointer-events: auto; }
   #menu h1 { font-size: 30px; margin-bottom: 10px; color: #4aa3df; }
   #menu p { color: #aaa; max-width: 380px; margin-bottom: 30px; font-size: 15px; line-height: 1.45; }
@@ -24,7 +24,7 @@
 
 <div id="menu">
   <h1>VR Hub: Город</h1>
-  <p>Вставьте телефон в Cardboard, нажмите кнопку и смотрите прямо. Положение при старте станет направлением "вперёд".</p>
+  <p>Вставьте телефон в Cardboard, нажмите кнопку и смотрите прямо.</p>
   <button class="btn" onclick="startGame()">Начать VR игру</button>
 </div>
 
@@ -41,7 +41,7 @@ let playerPos = new THREE.Vector3(0, 1.7, 10);
 
 let targetQuaternion = new THREE.Quaternion();
 let currentQuaternion = new THREE.Quaternion();
-let baseOrientation = null;
+let baseQuaternion = null;
 
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
@@ -52,7 +52,6 @@ function toggleFullscreen() {
 }
 
 function startGame() {
-  // iOS 13+ permission
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     DeviceOrientationEvent.requestPermission().then(function(response) {
       if (response === 'granted') {
@@ -70,106 +69,104 @@ function startGame() {
 }
 
 function getScreenAngle() {
-  if (screen.orientation && typeof screen.orientation.angle === 'number') {
+  if (window.screen && screen.orientation && typeof screen.orientation.angle === 'number') {
     return screen.orientation.angle;
   }
   return window.orientation || 0;
 }
 
+// Canonical Cardboard/three.js device-orientation -> world quaternion
+function deviceQuaternion(alphaDeg, betaDeg, gammaDeg) {
+  var alpha = THREE.MathUtils.degToRad(alphaDeg);
+  var beta = THREE.MathUtils.degToRad(betaDeg);
+  var gamma = THREE.MathUtils.degToRad(gammaDeg);
+
+  var zee = new THREE.Vector3(0, 0, 1);
+  var euler = new THREE.Euler();
+  var q0 = new THREE.Quaternion();
+  var q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // -90 deg around X
+
+  euler.set(beta, alpha, -gamma, 'YXZ');
+  var q = new THREE.Quaternion().setFromEuler(euler);
+  q.multiply(q1);
+  q.multiply(q0.setFromAxisAngle(zee, -getScreenAngle()));
+
+  return q;
+}
+
 function handleOrientation(e) {
   if (e.alpha === null || e.beta === null || e.gamma === null) return;
 
-  var alpha = THREE.MathUtils.degToRad(e.alpha);
-  var beta = THREE.MathUtils.degToRad(e.beta);
-  var gamma = THREE.MathUtils.degToRad(e.gamma);
+  var q = deviceQuaternion(e.alpha, e.beta, e.gamma);
 
-  // Device-frame quaternion (portrait reference), YXZ order
-  var quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(beta, alpha, -gamma, 'YXZ'));
-
-  // Landscape (Cardboard) correction: rotate around world Z by current screen angle
-  var screenAngle = getScreenAngle();
-  if (screenAngle !== 0) {
-    var zQuat = new THREE.Quaternion().setFromAxisAngle(
-      new THREE.Vector3(0, 0, 1),
-      -THREE.MathUtils.degToRad(screenAngle)
-    );
-    quat.multiply(zQuat);
+  if (!baseQuaternion) {
+    baseQuaternion = q.clone().invert();
   }
 
-  // Calibrate at start: whatever pose the phone is in now = "forward"
-  if (!baseOrientation) {
-    baseOrientation = quat.clone().invert();
-  }
-
-  targetQuaternion.copy(baseOrientation).multiply(quat);
+  targetQuaternion.copy(baseQuaternion).multiply(q);
 }
 
 function init3D() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87ceeb);
-  scene.fog = new THREE.FogExp2(0x87ceeb, 0.012);
+  scene.fog = new THREE.Fog(0x87ceeb, 120, 600);
 
   var aspect = (window.innerWidth / 2) / window.innerHeight;
-  cameraL = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
-  cameraR = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+  cameraL = new THREE.PerspectiveCamera(75, aspect, 0.1, 2000);
+  cameraR = new THREE.PerspectiveCamera(75, aspect, 0.1, 2000);
 
-  rendererL = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  rendererL = new THREE.WebGLRenderer({ antialias: true });
   rendererL.setSize(window.innerWidth / 2, window.innerHeight);
   rendererL.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   document.getElementById('left-view').appendChild(rendererL.domElement);
 
-  rendererR = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  rendererR = new THREE.WebGLRenderer({ antialias: true });
   rendererR.setSize(window.innerWidth / 2, window.innerHeight);
   rendererR.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   document.getElementById('right-view').appendChild(rendererR.domElement);
 
-  // Sun / sky
-  var sun = new THREE.DirectionalLight(0xfff2d9, 1.0);
+  var sun = new THREE.DirectionalLight(0xffffff, 1.0);
   sun.position.set(80, 200, 60);
   scene.add(sun);
 
-  var ambient = new THREE.AmbientLight(0xffffff, 0.65);
+  var ambient = new THREE.AmbientLight(0xffffff, 0.7);
   scene.add(ambient);
 
-  // Ground
+  // Light ground so "looking down" never goes black
   var ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(1000, 1000),
-    new THREE.MeshStandardMaterial({ color: 0x3a3f45 })
+    new THREE.PlaneGeometry(1200, 1200),
+    new THREE.MeshStandardMaterial({ color: 0x9aa3ab })
   );
   ground.rotation.x = -Math.PI / 2;
   scene.add(ground);
 
   // Roads grid
-  var roadMat = new THREE.MeshStandardMaterial({ color: 0x2a2e33 });
-  for (var i = -360; i <= 360; i += 80) {
-    var roadA = new THREE.Mesh(new THREE.PlaneGeometry(14, 1000), roadMat);
+  var roadMat = new THREE.MeshStandardMaterial({ color: 0x555b63 });
+  for (var i = -400; i <= 400; i += 80) {
+    var roadA = new THREE.Mesh(new THREE.PlaneGeometry(14, 1200), roadMat);
     roadA.rotation.x = -Math.PI / 2;
     roadA.position.set(i, 0.02, 0);
     scene.add(roadA);
 
-    var roadB = new THREE.Mesh(new THREE.PlaneGeometry(1000, 14), roadMat);
+    var roadB = new THREE.Mesh(new THREE.PlaneGeometry(1200, 14), roadMat);
     roadB.rotation.x = -Math.PI / 2;
     roadB.position.set(0, 0.02, i);
     scene.add(roadB);
   }
 
-  // Buildings on spacious blocks
+  // Buildings — dense, tall, colorful so every direction shows content
   var boxGeo = new THREE.BoxGeometry(1, 1, 1);
-  var colors = [0x7d8590, 0x8a93a3, 0x9a8f86, 0x6f7d92, 0x86796f];
+  var colors = [0x7d8590, 0x8a93a3, 0x9a8f86, 0x6f7d92, 0x86796f, 0x9aa0a8];
 
-  for (var x = -340; x <= 340; x += 80) {
-    for (var z = -340; z <= 340; z += 80) {
-      // Leave the center block (spawn area) clear
-      if (Math.abs(x) < 40 && Math.abs(z) < 40) continue;
+  for (var x = -380; x <= 380; x += 80) {
+    for (var z = -380; z <= 380; z += 80) {
+      if (Math.abs(x) < 40 && Math.abs(z) < 40) continue; // spawn area clear
 
-      var spots = [
-        [x - 20, z - 20], [x - 20, z + 20],
-        [x + 20, z - 20], [x + 20, z + 20]
-      ];
+      var spots = [[x-20,z-20],[x-20,z+20],[x+20,z-20],[x+20,z+20]];
       for (var s = 0; s < spots.length; s++) {
         var bx = spots[s][0];
         var bz = spots[s][1];
-        var h = Math.random() * 55 + 18;
+        var h = Math.random() * 70 + 25;
         var mat = new THREE.MeshStandardMaterial({ color: colors[Math.floor(Math.random() * colors.length)] });
         var building = new THREE.Mesh(boxGeo, mat);
         building.scale.set(24, h, 24);
@@ -215,11 +212,9 @@ function onKeyUp(e) {
 function updateMovement() {
   var speed = 0.25;
   var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
-  forward.y = 0;
-  forward.normalize();
+  forward.y = 0; forward.normalize();
   var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
-  right.y = 0;
-  right.normalize();
+  right.y = 0; right.normalize();
 
   var mv = new THREE.Vector3();
   if (moveForward) mv.add(forward);
@@ -229,8 +224,8 @@ function updateMovement() {
   if (mv.lengthSq() > 0) mv.normalize();
 
   playerPos.addScaledVector(mv, speed);
-  playerPos.x = Math.max(-400, Math.min(400, playerPos.x));
-  playerPos.z = Math.max(-400, Math.min(400, playerPos.z));
+  playerPos.x = Math.max(-440, Math.min(440, playerPos.x));
+  playerPos.z = Math.max(-440, Math.min(440, playerPos.z));
 }
 
 function pollGamepad() {
