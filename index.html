@@ -22,7 +22,7 @@ body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; u
 
 <div id="menu">
   <h1>VR Hub: Город</h1>
-  <p style="margin-bottom:20px; color:#aaa; max-width:400px;">Для активации гироскопа нажмите кнопку ниже (на телефоне).</p>
+  <p style="margin-bottom:20px; color:#aaa; max-width:400px;">Нажмите кнопку для запуска VR режима с плавным гироскопом.</p>
   <button class="btn" onclick="startGame()">Начать VR игру</button>
 </div>
 
@@ -35,11 +35,11 @@ body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; u
 let scene, cameraL, cameraR, rendererL, rendererR;
 let isPlaying = false;
 let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
-let rotX = 0, rotY = 0;
 let playerPos = new THREE.Vector3(0, 1.7, 10);
 
-let baseAlpha = null;
-let baseBeta = null;
+// Quaternion based smooth orientation for Cardboard VR
+let targetQuaternion = new THREE.Quaternion();
+let currentQuaternion = new THREE.Quaternion();
 
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
@@ -52,16 +52,14 @@ function toggleFullscreen() {
 }
 
 function startGame() {
-  // Request permission for iOS 13+ devices
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     DeviceOrientationEvent.requestPermission().then(response => {
       if (response === 'granted') {
-        window.addEventListener('deviceorientation', handleOrientation, true);
+        window.addEventListener('deviceorientationthrough', handleOrientation, true);
       }
     }).catch(console.error);
-  } else {
-    window.addEventListener('deviceorientation', handleOrientation, true);
   }
+  window.addEventListener('deviceorientation', handleOrientation, true);
 
   document.getElementById('menu').style.display = 'none';
   document.getElementById('vr-container').style.display = 'block';
@@ -70,20 +68,22 @@ function startGame() {
 }
 
 function handleOrientation(e) {
-  if (e.alpha === null || e.beta === null) return;
+  if (e.alpha === null || e.beta === null || e.gamma === null) return;
 
-  if (baseAlpha === null) {
-    baseAlpha = e.alpha;
-    baseBeta = e.beta;
-  }
+  // Convert device orientation angles to Three.js coordinates
+  const alpha = THREE.MathUtils.degToRad(e.alpha);
+  const beta = THREE.MathUtils.degToRad(e.beta);
+  const gamma = THREE.MathUtils.degToRad(e.gamma);
 
-  // Pure phone orientation mapping
-  let alpha = THREE.MathUtils.degToRad(e.alpha - baseAlpha);
-  let beta = THREE.MathUtils.degToRad(e.beta - baseBeta);
+  const zee = new THREE.Vector3(0, 0, 1);
+  const kamer = new THREE.Euler();
+  const q0 = new THREE.Quaternion();
+  const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // - PI/2 around X
 
-  rotY = -alpha;
-  rotX = -beta;
-  rotX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, rotX));
+  kamer.set(beta, alpha, -gamma, 'YXZ');
+  targetQuaternion.setFromEuler(kamer);
+  targetQuaternion.multiply(q1);
+  targetQuaternion.multiply(q0.setFromAxisAngle(zee, -window.orientation || 0));
 }
 
 function init3D() {
@@ -174,8 +174,22 @@ function updateMovement() {
   if (moveLeft) dir.x -= 1;
   if (moveRight) dir.x += 1;
   dir.normalize();
-  dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
-  playerPos.addScaledVector(dir, speed);
+  
+  let forwardDir = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+  forwardDir.y = 0;
+  forwardDir.normalize();
+  let rightDir = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
+  rightDir.y = 0;
+  rightDir.normalize();
+
+  let moveVec = new THREE.Vector3();
+  if (moveForward) moveVec.add(forwardDir);
+  if (moveBackward) moveVec.sub(forwardDir);
+  if (moveLeft) moveVec.sub(rightDir);
+  if (moveRight) moveVec.add(rightDir);
+  moveVec.normalize();
+
+  playerPos.addScaledVector(moveVec, speed);
   playerPos.x = Math.max(-95, Math.min(95, playerPos.x));
   playerPos.z = Math.max(-95, Math.min(95, playerPos.z));
 }
@@ -185,14 +199,18 @@ function pollGamepad() {
   for (let i = 0; i < gamepads.length; i++) {
     const gp = gamepads[i];
     if (gp) {
-      // Left stick for movement only (camera rotation removed from gamepad)
       let ax = gp.axes[0];
       let ay = gp.axes[1];
       if (Math.abs(ax) > 0.1 || Math.abs(ay) > 0.1) {
-        let speed = 0.15;
-        let dir = new THREE.Vector3(ax, 0, ay);
-        dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
-        playerPos.addScaledVector(dir, speed);
+        let forwardDir = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+        forwardDir.y = 0; forwardDir.normalize();
+        let rightDir = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
+        rightDir.y = 0; rightDir.normalize();
+
+        let moveVec = new THREE.Vector3();
+        moveVec.addScaledVector(forwardDir, -ay);
+        moveVec.addScaledVector(rightDir, ax);
+        playerPos.addScaledVector(moveVec, 0.15);
       }
     }
   }
@@ -205,16 +223,18 @@ function animate() {
   updateMovement();
   pollGamepad();
 
+  // Smooth slerp for quaternion rotation
+  currentQuaternion.slerp(targetQuaternion, 0.1);
+
   let ipd = 0.032;
-  let quaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(rotX, rotY, 0, 'YXZ'));
+  let eyeOffsetL = new THREE.Vector3(-ipd, 0, 0).applyQuaternion(currentQuaternion);
+  let eyeOffsetR = new THREE.Vector3(ipd, 0, 0).applyQuaternion(currentQuaternion);
 
-  cameraL.position.copy(playerPos);
-  cameraL.position.add(new THREE.Vector3(-ipd, 0, 0).applyQuaternion(quaternion));
-  cameraL.quaternion.copy(quaternion);
+  cameraL.position.copy(playerPos).add(eyeOffsetL);
+  cameraL.quaternion.copy(currentQuaternion);
 
-  cameraR.position.copy(playerPos);
-  cameraR.position.add(new THREE.Vector3(ipd, 0, 0).applyQuaternion(quaternion));
-  cameraR.quaternion.copy(quaternion);
+  cameraR.position.copy(playerPos).add(eyeOffsetR);
+  cameraR.quaternion.copy(currentQuaternion);
 
   rendererL.render(scene, cameraL);
   rendererR.render(scene, cameraR);
