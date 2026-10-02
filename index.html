@@ -220,10 +220,6 @@ function joinSession() {
           // New game launched on PC -> rebuild the phone scene
           currentActiveGame = val.game;
           initVR3D();
-          if (currentActiveGame === 'trials') {
-            var hudR = document.getElementById('trial-hud');
-            if (hudR) { hudR.style.display = 'block'; hudR.innerText = 'Найди выход из лабиринта!'; }
-          }
         } else if (val.status === 'menu' && isPlaying) {
           stopVRGameEngine();
         }
@@ -260,8 +256,12 @@ function launchGame(gameName) {
   playerPos.set(0, 1.7, 10);
   playerVelY = 0;
   isGrounded = true;
-  if (role === 'pc') initPCStreamScene();
-  if (sessionRef) {
+  if (role === 'pc') {
+    initPCStreamScene();
+    // Write the REAL spawn (maze start) to the DB atomically so the phone
+    // never reads the stale (0,1.7,10) and teleports inside a wall.
+    sessionRef.update({ status: 'playing', game: gameName, pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z } });
+  } else if (sessionRef) {
     sessionRef.update({ status: 'playing', game: gameName });
   }
 }
@@ -415,10 +415,6 @@ function initTrialsEnvironment(sceneTarget) {
     }
   }
 
-  var startMark = new THREE.Mesh(new THREE.BoxGeometry(4, 0.2, 4), new THREE.MeshBasicMaterial({ color: 0x4aa3df, transparent: true, opacity: 0.7 }));
-  startMark.position.set(offX, 0.11, offZ);
-  sceneTarget.add(startMark);
-
   var gx = offX + (COLS - 1) * CELL;
   var gz = offZ + (ROWS - 1) * CELL;
   var goal = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 6, 16), new THREE.MeshStandardMaterial({ color: 0xf1c40f, emissive: 0x8a6d00, emissiveIntensity: 0.5 }));
@@ -458,10 +454,6 @@ function checkTrialsProgress() {
     var cdz = playerPos.z - cd.z;
     if (cdx * cdx + cdz * cdz < 12) {
       trialCurrentIndex++;
-      var hud = document.getElementById('trial-hud');
-      if (hud) {
-        hud.innerText = trialCurrentIndex >= trialCheckpoints.length ? 'Иди к золотому столбу!' : 'Чекпоинт ' + trialCurrentIndex + ' / ' + trialCheckpoints.length;
-      }
     }
   }
   if (!trialCompleted) {
@@ -469,8 +461,6 @@ function checkTrialsProgress() {
     var gz = trialGoalPos.z - playerPos.z;
     if (gx * gx + gz * gz < 9) {
       trialCompleted = true;
-      var hudWin = document.getElementById('trial-hud');
-      if (hudWin) hudWin.innerText = 'ЛАБИРИНТ ПРОЙДЕН!';
     }
   }
 }
@@ -616,13 +606,6 @@ function startVRGameEngine() {
   document.getElementById('ui-layer').style.display = 'none';
   document.getElementById('vr-container').style.display = 'block';
   isPlaying = true;
-  if (currentActiveGame === 'trials') {
-    var hud = document.getElementById('trial-hud');
-    if (hud) {
-      hud.style.display = 'block';
-      hud.innerText = 'Найди выход из лабиринта!';
-    }
-  }
 
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     DeviceOrientationEvent.requestPermission().then(resp => {
@@ -641,8 +624,6 @@ function startVRGameEngine() {
 function stopVRGameEngine() {
   isPlaying = false;
   document.getElementById('vr-container').style.display = 'none';
-  var hud = document.getElementById('trial-hud');
-  if (hud) hud.style.display = 'none';
   document.getElementById('ui-layer').style.display = 'flex';
   document.getElementById('step-role').style.display = 'none';
   document.getElementById('step-phone-wait').style.display = 'block';
