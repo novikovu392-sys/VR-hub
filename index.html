@@ -60,7 +60,6 @@
       <p style="margin:5px 0 0 0; color:#4aa3df; font-size:16px;" id="pc-code-display">Код: ----</p>
     </div>
     <div class="right">
-      <button class="btn btn-sec" onclick="pcTogglePhoneFullscreen()" id="pcFsBtn">На весь экран (телефон)</button>
       <button class="btn btn-danger" onclick="exitGameFromPC()" id="pcExitBtn">Выйти из игры</button>
     </div>
   </div>
@@ -190,17 +189,7 @@ function joinSession() {
         } else if (val.status === 'menu' && isPlaying) {
           stopVRGameEngine();
         }
-        if (typeof val.fs !== 'undefined') {
-          if (val.fs) {
-            if (!document.fullscreenElement) {
-              document.documentElement.requestFullscreen().catch(()=>{});
-            }
-          } else {
-            if (document.fullscreenElement && document.exitFullscreen) {
-              document.exitFullscreen();
-            }
-          }
-        }
+
       });
     } else {
       document.getElementById('phone-status').innerText = 'Сессия не найдена!';
@@ -219,24 +208,6 @@ function exitGameFromPC() {
     sessionRef.update({ status: 'menu', game: null, fs: false });
   }
 }
-
-function pcTogglePhoneFullscreen() {
-  if (sessionRef) {
-    sessionRef.once('value', (snap) => {
-      const cur = snap.val() ? !!snap.val().fs : false;
-      sessionRef.update({ fs: !cur });
-    });
-  }
-}
-
-function updateFsButton(fsState) {
-  pcFsState = fsState;
-  const btn = document.getElementById('pcFsBtn');
-  if (btn) {
-    btn.innerText = fsState ? 'Отключить полный экран' : 'На весь экран (телефон)';
-  }
-}
-
 
 
 function getScreenAngle() {
@@ -335,11 +306,51 @@ function initPCStreamScene() {
   container.appendChild(pcRenderer.domElement);
 }
 
+let gamepadMoveSpeed = 14;
+
+function updateGamepadMovement() {
+  if (!pcStreamActive || !sessionRef) return;
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  let stickX = 0, stickY = 0;
+  for (let i = 0; i < pads.length; i++) {
+    const pad = pads[i];
+    if (pad && pad.connected) {
+      // Left stick: axes 0 (X) and 1 (Y)
+      stickX = pad.axes[0] || 0;
+      stickY = pad.axes[1] || 0;
+      // Cross-key fallback if stick is dead
+      if (Math.abs(stickX) < 0.15 && Math.abs(stickY) < 0.15) {
+        const up = pad.buttons[12] ? (pad.buttons[12].pressed ? 1 : 0) : 0;
+        const down = pad.buttons[13] ? (pad.buttons[13].pressed ? -1 : 0) : 0;
+        const left = pad.buttons[14] ? (pad.buttons[14].pressed ? -1 : 0) : 0;
+        const right = pad.buttons[15] ? (pad.buttons[15].pressed ? 1 : 0) : 0;
+        stickY = up + down;
+        stickX = right + left;
+      }
+      break;
+    }
+  }
+  if (Math.abs(stickX) < 0.15 && Math.abs(stickY) < 0.15) return;
+
+  var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+  var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
+  forward.y = 0; forward.normalize();
+  right.y = 0; right.normalize();
+  var move = new THREE.Vector3();
+  move.addScaledVector(forward, -stickY);
+  move.addScaledVector(right, stickX);
+  move.normalize().multiplyScalar(gamepadMoveSpeed * 0.016);
+  playerPos.add(move);
+  sessionRef.update({ pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z } });
+}
+
 function animatePC() {
   if (role !== 'pc') return;
   requestAnimationFrame(animatePC);
 
   if (!pcRenderer || !pcCamera) return;
+
+  updateGamepadMovement();
 
   if (pcStreamActive) {
     currentQuaternion.slerp(targetQuaternion, 0.25);
@@ -362,6 +373,8 @@ function startVRGameEngine() {
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     DeviceOrientationEvent.requestPermission().then(resp => {
       if (resp === 'granted') window.addEventListener('deviceorientation', handleOrientation, true);
+  window.addEventListener('gamepadconnected', (e) => { console.log('Gamepad connected:', e.gamepad.id); });
+  window.addEventListener('gamepaddisconnected', (e) => { console.log('Gamepad disconnected:', e.gamepad.id); });
     }).catch(console.error);
   } else {
     window.addEventListener('deviceorientation', handleOrientation, true);
@@ -429,11 +442,43 @@ function onWindowResize() {
   }
 }
 
+function getGamepadMove() {
+  var pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (var i = 0; i < pads.length; i++) {
+    var gp = pads[i];
+    if (gp && gp.connected) {
+      var ax = gp.axes[0] || 0;
+      var ay = gp.axes[1] || 0;
+      if (Math.abs(ax) < 0.15) ax = 0;
+      if (Math.abs(ay) < 0.15) ay = 0;
+      return { x: ax, y: ay };
+    }
+  }
+  return { x: 0, y: 0 };
+}
+
 function animateVR() {
   if (!isPlaying || role !== 'phone') return;
   requestAnimationFrame(animateVR);
 
   currentQuaternion.slerp(targetQuaternion, 0.25);
+
+  // Gamepad movement (left stick)
+  var joy = getGamepadMove();
+  if (joy.x !== 0 || joy.y !== 0) {
+    var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+    var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
+    forward.y = 0; forward.normalize();
+    right.y = 0; right.normalize();
+    var move = new THREE.Vector3();
+    move.addScaledVector(forward, -joy.y);
+    move.addScaledVector(right, joy.x);
+    move.normalize().multiplyScalar(14 * 0.016);
+    playerPos.add(move);
+    if (sessionRef && isPlaying) {
+      sessionRef.update({ pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z } });
+    }
+  }
 
   var ipd = 0.032;
   var offL = new THREE.Vector3(-ipd, 0, 0).applyQuaternion(currentQuaternion);
