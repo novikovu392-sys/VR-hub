@@ -41,7 +41,7 @@ let targetQuaternion = new THREE.Quaternion();
 let currentQuaternion = new THREE.Quaternion();
 
 let baseAlpha = null;
-let baseBeta = null;
+let baseGamma = null;
 
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
@@ -75,17 +75,15 @@ function handleOrientation(e) {
 
   if (baseAlpha === null) {
     baseAlpha = e.alpha;
-    baseBeta = e.beta;
+    baseGamma = e.gamma;
   }
 
-  // Correct mapping for landscape Cardboard mode (phone held sideways)
   let alpha = THREE.MathUtils.degToRad(e.alpha - baseAlpha);
-  let beta = THREE.MathUtils.degToRad(e.beta - baseBeta);
-  let gamma = THREE.MathUtils.degToRad(e.gamma);
+  let gamma = THREE.MathUtils.degToRad(e.gamma - baseGamma);
 
-  // Landscape orientation axes swap: Yaw = alpha, Pitch = gamma, Roll = 0
+  // Stable Cardboard landscape mapping: Yaw from alpha, Pitch from gamma
   let qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -alpha);
-  let qPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -gamma);
+  let qPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), gamma);
 
   targetQuaternion.copy(qYaw).multiply(qPitch);
 }
