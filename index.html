@@ -22,7 +22,7 @@ body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; u
 
 <div id="menu">
   <h1>VR Hub: Город</h1>
-  <p style="margin-bottom:20px; color:#aaa; max-width:400px;">Нажмите кнопку и держите телефон вертикально перед собой в Cardboard.</p>
+  <p style="margin-bottom:20px; color:#aaa; max-width:400px;">Держите телефон ровно вертикально и нажмите старт.</p>
   <button class="btn" onclick="startGame()">Начать VR игру</button>
 </div>
 
@@ -40,8 +40,7 @@ let playerPos = new THREE.Vector3(0, 1.7, 10);
 let targetQuaternion = new THREE.Quaternion();
 let currentQuaternion = new THREE.Quaternion();
 
-let baseOrientation = new THREE.Quaternion();
-let isCalibrated = false;
+let baseOrientation = null;
 
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
@@ -73,7 +72,7 @@ function startGame() {
 function handleOrientation(e) {
   if (e.alpha === null || e.beta === null || e.gamma === null) return;
 
-  // Use raw device orientation quaternion via THREE.DeviceOrientationControls logic
+  // Standard DeviceOrientation to Three.js orientation using DeviceOrientationControls math
   const alpha = THREE.MathUtils.degToRad(e.alpha);
   const beta = THREE.MathUtils.degToRad(e.beta);
   const gamma = THREE.MathUtils.degToRad(e.gamma);
@@ -88,10 +87,8 @@ function handleOrientation(e) {
   q.multiply(q1);
   q.multiply(q0.setFromAxisAngle(zee, -window.orientation || 0));
 
-  if (!isCalibrated) {
-    // Capture exact starting pose as the forward vector
-    baseOrientation.copy(q).invert();
-    isCalibrated = true;
+  if (!baseOrientation) {
+    baseOrientation = q.clone().invert();
   }
 
   targetQuaternion.copy(baseOrientation).multiply(q);
@@ -189,8 +186,6 @@ function onKeyDown(e) {
   if (e.code === 'KeyA' || e.code === 'ArrowLeft') moveLeft = true;
   if (e.code === 'KeyD' || e.code === 'ArrowRight') moveRight = true;
 }
-
-} // fix bracket
 
 function onKeyUp(e) {
   if (e.code === 'KeyW' || e.code === 'ArrowUp') moveForward = false;
