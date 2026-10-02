@@ -72,11 +72,6 @@
         <p>Синхронный мегаполис со стационарными домами.</p>
         <button class="btn" onclick="launchGame('city')">Запустить</button>
       </div>
-      <div class="game-card">
-        <h3>Испытания</h3>
-        <p>Прогрессия по чекпоинтам, прыжки на X.</p>
-        <button class="btn" onclick="launchGame('trials')">Запустить</button>
-      </div>
     </div>
     <div id="pc-view-container"></div>
   </div>
@@ -86,8 +81,6 @@
   <div id="left-view"></div>
   <div id="right-view"></div>
 </div>
-
-<div id="trial-hud" style="display:none; position:absolute; top:70px; left:50%; transform:translateX(-50%); color:#fff; font-size:22px; font-weight:bold; z-index:950; text-shadow:0 0 8px #000;"></div>
 
 <script>
 const firebaseConfig = {
@@ -117,14 +110,6 @@ let playerPos = new THREE.Vector3(0, 1.7, 10);
 let targetQuaternion = new THREE.Quaternion();
 let currentQuaternion = new THREE.Quaternion();
 let baseQuaternion = null;
-let lastWrittenPos = { x: 0, y: 0, z: 0 };
-
-function posSameAsWritten(x, y, z, eps) {
-  if (eps === undefined) eps = 0.05;
-  return Math.abs(lastWrittenPos.x - x) < eps &&
-         Math.abs(lastWrittenPos.y - y) < eps &&
-         Math.abs(lastWrittenPos.z - z) < eps;
-}
 
 const fixedBuildingsData = [
   {x: -120, z: -120, h: 45, color: 0x7d8590},
@@ -166,10 +151,8 @@ function selectRole(r) {
         pcStreamActive = false;
       }
 
-      if (data.quat) {
+      if (data.quat && data.pos) {
         currentQuaternion.set(data.quat.x, data.quat.y, data.quat.z, data.quat.w);
-      }
-      if (data.pos && !posSameAsWritten(data.pos.x, data.pos.y, data.pos.z)) {
         playerPos.set(data.pos.x, data.pos.y, data.pos.z);
       }
       updateFsButton(!!data.fs);
@@ -203,41 +186,17 @@ function joinSession() {
         const val = snap.val();
         if (!val) return;
         if (val.status === 'playing' && !isPlaying) {
-          currentActiveGame = val.game || 'city';
           startVRGameEngine();
-        } else if (val.status === 'playing' && isPlaying && val.game && val.game !== currentActiveGame) {
-          // New game launched on PC -> rebuild the phone scene too
-          currentActiveGame = val.game;
-          initVR3D();
-          if (currentActiveGame === 'trials') {
-            var hudR = document.getElementById('trial-hud');
-            if (hudR) { hudR.style.display = 'block'; hudR.innerText = 'Найди выход из лабиринта!'; }
-          }
         } else if (val.status === 'menu' && isPlaying) {
           stopVRGameEngine();
         }
 
-        // Fullscreen synced from the PC button -> goes to the phone
-        if (val.fs !== undefined) {
-          if (val.fs) {
-            if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-              document.documentElement.requestFullscreen().catch(function(){});
-            }
-          } else if (document.fullscreenElement && document.exitFullscreen) {
-            document.exitFullscreen();
-          }
-        }
-
-        // Sync position + orientation from the PC (ignore our own echo)
-        if (isPlaying && val.pos && !posSameAsWritten(val.pos.x, val.pos.y, val.pos.z)) {
+        // Sync position + orientation from PC into the phone view
+        if (isPlaying && val.pos) {
           playerPos.set(val.pos.x, val.pos.y, val.pos.z);
         }
         if (isPlaying && val.quat) {
           targetQuaternion.set(val.quat.x, val.quat.y, val.quat.z, val.quat.w);
-        }
-        // Sync Minecraft blocks so the phone renders them
-        if (isPlaying && currentActiveGame === 'minecraft' && val.blocks && scene) {
-          syncMinecraftBlocks(val.blocks);
         }
       });
     } else {
@@ -246,266 +205,30 @@ function joinSession() {
   });
 }
 
-let currentActiveGame = 'city';
-let minecraftBlocks = [];
-let raycaster = new THREE.Raycaster();
-let blockGeo = new THREE.BoxGeometry(2, 2, 2);
-let blockMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
-let highlightBox = null;
-let playerVelY = 0;
-let isGrounded = false;
-let trialCurrentIndex = 0;
-let trialCompleted = false;
-let trialWalls = [];
-let trialGoalPos = new THREE.Vector3(0, 1.7, 0);
-var TRIAL_CELL = 4;
-var TRIAL_N = 15;
-var phoneMoving = false;
-var lastPhonePosSent = null;
-var lastPcPosSent = null;
-let mazeWalls = [];
-let mazeCheckpointRings = [];
-
-// Deterministic PRNG so the PC and phone generate the SAME maze
-function mulberry32(seed) {
-  return function() {
-    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
-    var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-
-function generateMaze(rows, cols) {
-  var rnd = mulberry32(20261002);
-  var cells = [];
-  for (var r = 0; r < rows; r++) {
-    cells[r] = [];
-    for (var c = 0; c < cols; c++) {
-      cells[r][c] = { vis: false, walls: { top:true, bottom:true, left:true, right:true } };
-    }
-  }
-  var dirs = [[0,-1,'top','bottom'],[0,1,'bottom','top'],[-1,0,'left','right'],[1,0,'right','left']];
-  var stack = [[0,0]];
-  cells[0][0].vis = true;
-  while (stack.length) {
-    var cur = stack[stack.length - 1];
-    var r = cur[0], c = cur[1];
-    var opts = [];
-    for (var i = 0; i < dirs.length; i++) {
-      var dr = dirs[i][0], dc = dirs[i][1];
-      var nr = r + dr, nc = c + dc;
-      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !cells[nr][nc].vis) opts.push(dirs[i]);
-    }
-    if (!opts.length) { stack.pop(); continue; }
-    var pick = opts[Math.floor(rnd() * opts.length)];
-    var nr = r + pick[0], nc = c + pick[1];
-    cells[r][c].walls[pick[2]] = false;
-    cells[nr][nc].walls[pick[3]] = false;
-    cells[nr][nc].vis = true;
-    stack.push([nr, nc]);
-  }
-  return cells;
-}
-
-function addMazeWall(sceneTarget, geo, mat, x, z, hx, hz) {
-  var wall = new THREE.Mesh(geo, mat);
-  wall.position.set(x, 3, z);
-  wall.userData.half = { hx: hx / 2, hz: hz / 2 };
-  sceneTarget.add(wall);
-  mazeWalls.push(wall);
-}
-
-function canMoveTo(x, z) {
-  var R = 0.8;
-  for (var i = 0; i < mazeWalls.length; i++) {
-    var w = mazeWalls[i];
-    var h = w.userData.half;
-    if (Math.abs(x - w.position.x) < h.hx + R && Math.abs(z - w.position.z) < h.hz + R) return false;
-  }
-  return true;
-}
-
-function initTrialsEnvironment(sceneTarget) {
-  sceneTarget.background = new THREE.Color(0x87ceeb);
-  sceneTarget.fog = new THREE.Fog(0x87ceeb, 80, 400);
-
-  sceneTarget.add(new THREE.AmbientLight(0xffffff, 0.7));
-  var sun = new THREE.DirectionalLight(0xffffff, 1.0);
-  sun.position.set(50, 200, 50);
-  sceneTarget.add(sun);
-
-  // Ground
-  var ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(200, 200),
-    new THREE.MeshStandardMaterial({ color: 0x7aa87a })
-  );
-  ground.rotation.x = -Math.PI / 2;
-  sceneTarget.add(ground);
-
-  var ROWS = 9, COLS = 9, CELL = 6, WALL_H = 6;
-  var maze = generateMaze(ROWS, COLS);
-  var wallMat = new THREE.MeshStandardMaterial({ color: 0x9a6a4a });
-  var horGeo = new THREE.BoxGeometry(CELL, WALL_H, 0.8);
-  var verGeo = new THREE.BoxGeometry(0.8, WALL_H, CELL);
-  mazeWalls = [];
-  var offX = -((COLS - 1) * CELL) / 2;
-  var offZ = -((ROWS - 1) * CELL) / 2;
-
-  for (var r = 0; r < ROWS; r++) {
-    for (var c = 0; c < COLS; c++) {
-      var cx = offX + c * CELL;
-      var cz = offZ + r * CELL;
-      var cell = maze[r][c];
-      if (cell.walls.top) addMazeWall(sceneTarget, horGeo, wallMat, cx, cz - CELL / 2, CELL, 0.8);
-      if (cell.walls.bottom) addMazeWall(sceneTarget, horGeo, wallMat, cx, cz + CELL / 2, CELL, 0.8);
-      if (cell.walls.left) addMazeWall(sceneTarget, verGeo, wallMat, cx - CELL / 2, cz, 0.8, CELL);
-      if (cell.walls.right) addMazeWall(sceneTarget, verGeo, wallMat, cx + CELL / 2, cz, 0.8, CELL);
-    }
-  }
-
-  // Start marker
-  var startMark = new THREE.Mesh(
-    new THREE.BoxGeometry(4, 0.2, 4),
-    new THREE.MeshBasicMaterial({ color: 0x4aa3df, transparent: true, opacity: 0.7 })
-  );
-  startMark.position.set(offX, 0.11, offZ);
-  sceneTarget.add(startMark);
-
-  // Goal at the last cell
-  var gx = offX + (COLS - 1) * CELL;
-  var gz = offZ + (ROWS - 1) * CELL;
-  var goal = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.6, 1.6, 6, 16),
-    new THREE.MeshStandardMaterial({ color: 0xf1c40f, emissive: 0x8a6d00, emissiveIntensity: 0.5 })
-  );
-  goal.position.set(gx, 3, gz);
-  sceneTarget.add(goal);
-
-  // Checkpoint rings
-  trialCheckpoints = [];
-  mazeCheckpointRings = [];
-  var ringMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, side: THREE.DoubleSide });
-  var ringGeo = new THREE.RingGeometry(2.3, 2.9, 24);
-  for (var rr = 0; rr < ROWS; rr++) {
-    for (var cc = 0; cc < COLS; cc++) {
-      if ((rr * COLS + cc) % 8 === 0 && (rr !== 0 || cc !== 0) && !(rr === ROWS - 1 && cc === COLS - 1)) {
-        var chx = offX + cc * CELL;
-        var chz = offZ + rr * CELL;
-        var ring = new THREE.Mesh(ringGeo, ringMat);
-        ring.rotation.x = -Math.PI / 2;
-        ring.position.set(chx, 2.6, chz);
-        sceneTarget.add(ring);
-        mazeCheckpointRings.push(ring);
-        trialCheckpoints.push(new THREE.Vector3(chx, 1.7, chz));
-      }
-    }
-  }
-
-  playerPos.set(offX, 1.7, offZ);
-  playerVelY = 0;
-  isGrounded = true;
-  trialCurrentIndex = 0;
-  trialCompleted = false;
-  trialGoalPos.set(offX + (COLS - 1) * CELL, 1.7, offZ + (ROWS - 1) * CELL);
-}
-
-function initMinecraftEnvironment(sceneTarget) {
-  sceneTarget.background = new THREE.Color(0xa0e0ff);
-  sceneTarget.fog = new THREE.Fog(0xa0e0ff, 100, 400);
-
-  var sun = new THREE.DirectionalLight(0xffffff, 1.0);
-  sun.position.set(50, 200, 50);
-  sceneTarget.add(sun);
-  sceneTarget.add(new THREE.AmbientLight(0xffffff, 0.6));
-
-  // Platform
-  var ground = new THREE.Mesh(
-    new THREE.BoxGeometry(200, 2, 200),
-    new THREE.MeshStandardMaterial({ color: 0x55aa55 })
-  );
-  ground.position.set(0, -1, 0);
-  sceneTarget.add(ground);
-
-  // Highlight box for targeted building/destroying
-  var wireGeo = new THREE.BoxGeometry(2.05, 2.05, 2.05);
-  var wireMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
-  highlightBox = new THREE.Mesh(wireGeo, wireMat);
-  highlightBox.visible = false;
-  sceneTarget.add(highlightBox);
-
-  // Clear/init blocks
-  minecraftBlocks = [];
-}
-
-function syncMinecraftBlocks(blocks) {
-  if (!scene) return;
-  // Remove all existing non-base, non-highlight meshes
-  var toRemove = [];
-  scene.children.forEach(function(o) {
-    if (o.isMesh && o !== highlightBox && !(o.geometry && o.geometry.parameters && o.geometry.parameters.width === 200)) {
-      toRemove.push(o);
-    }
-  });
-  toRemove.forEach(function(o) { scene.remove(o); });
-
-  // Re-add from synced data
-  (blocks || []).forEach(function(b) {
-    var m = new THREE.Mesh(blockGeo, blockMat);
-    m.position.set(b.x, b.y, b.z);
-    scene.add(m);
-  });
-}
-
-function getGamepadControls() {
-  var pads = navigator.getGamepads ? navigator.getGamepads() : [];
-  for (var i = 0; i < pads.length; i++) {
-    var gp = pads[i];
-    if (gp && gp.connected) {
-      var ax = gp.axes[0] || 0;
-      var ay = gp.axes[1] || 0;
-      if (Math.abs(ax) < 0.15) ax = 0;
-      if (Math.abs(ay) < 0.15) ay = 0;
-      
-      // Buttons:
-      // 0: X (cross / bottom button)
-      // 6: L2, 7: R2
-      var xPressed = gp.buttons[0] ? gp.buttons[0].pressed : false;
-      var l2Pressed = gp.buttons[6] ? gp.buttons[6].pressed : (gp.buttons[6] && gp.buttons[6].value > 0.5);
-      var r2Pressed = gp.buttons[7] ? gp.buttons[7].pressed : (gp.buttons[7] && gp.buttons[7].value > 0.5);
-
-      return { x: ax, y: ay, jump: xPressed, l2: l2Pressed, r2: r2Pressed };
-    }
-  }
-  return { x: 0, y: 0, jump: false, l2: false, r2: false };
-}
-
 function launchGame(gameName) {
-  currentActiveGame = gameName;
-  trialCurrentIndex = 0;
-  trialCompleted = false;
-  playerPos.set(0, 1.7, 10);
-  playerVelY = 0;
-  isGrounded = true;
-  if (role === 'pc') {
-    initPCStreamScene();
-  }
   if (sessionRef) {
-    sessionRef.update({ status: 'playing', game: gameName, blocks: [] });
+    sessionRef.update({ status: 'playing', game: gameName });
   }
 }
 
 function togglePcFullscreen() {
-  if (!sessionRef) return;
-  pcFsState = !pcFsState;
-  sessionRef.update({ fs: pcFsState });
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().then(() => {
+      const btn = document.getElementById('pcFsBtn');
+      if (btn) btn.innerText = 'Свернуть экран';
+    }).catch(()=>{});
+  } else {
+    if (document.exitFullscreen) document.exitFullscreen();
+  }
 }
 
-function updateFsButton(fs) {
-  pcFsState = !!fs;
+// Keep the button label in sync every time fullscreen toggles (multi-use)
+document.addEventListener('fullscreenchange', () => {
   const btn = document.getElementById('pcFsBtn');
-  if (btn) btn.innerText = pcFsState ? 'Свернуть экран' : 'Полный экран';
-}
+  if (btn) {
+    btn.innerText = document.fullscreenElement ? 'Свернуть экран' : 'Полный экран';
+  }
+});
 
 function exitGameFromPC() {
   if (sessionRef) {
@@ -597,13 +320,7 @@ function initPCStreamScene() {
   const container = document.getElementById('pc-view-container');
   container.innerHTML = '';
   pcScene = new THREE.Scene();
-  if (currentActiveGame === 'minecraft') {
-    initMinecraftEnvironment(pcScene);
-  } else if (currentActiveGame === 'trials') {
-    initTrialsEnvironment(pcScene);
-  } else {
-    buildCityEnvironment(pcScene);
-  }
+  buildCityEnvironment(pcScene);
 
   const w = container.clientWidth || window.innerWidth;
   const h = container.clientHeight || window.innerHeight;
@@ -616,159 +333,41 @@ function initPCStreamScene() {
 }
 
 let gamepadMoveSpeed = 14;
-let lastJump = false;
-let lastL2 = false;
-let lastR2 = false;
-
-function getGamepadInput() {
-  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-  for (let i = 0; i < pads.length; i++) {
-    const pad = pads[i];
-    if (pad && pad.connected) {
-      let sx = pad.axes[0] || 0;
-      let sy = pad.axes[1] || 0;
-      if (Math.abs(sx) < 0.15) sx = 0;
-      if (Math.abs(sy) < 0.15) sy = 0;
-      const xButton = pad.buttons[0] ? pad.buttons[0].pressed : false;
-      const l2 = pad.buttons[6] ? (pad.buttons[6].pressed || pad.buttons[6].value > 0.5) : false;
-      const r2 = pad.buttons[7] ? (pad.buttons[7].pressed || pad.buttons[7].value > 0.5) : false;
-      return { sx, sy, xButton, l2, r2 };
-    }
-  }
-  return { sx: 0, sy: 0, xButton: false, l2: false, r2: false };
-}
 
 function updateGamepadMovement() {
   if (!pcStreamActive || !sessionRef) return;
-  const gp = getGamepadInput();
-
-  // ---- Gravity & jumping (works in both City and Minecraft) ----
-  const groundY = 1.7;
-  if (playerPos.y <= groundY) {
-    playerPos.y = groundY;
-    playerVelY = 0;
-    isGrounded = true;
-  } else {
-    playerVelY -= 0.02;
-    playerPos.y += playerVelY;
-    if (playerPos.y <= groundY) {
-      playerPos.y = groundY;
-      playerVelY = 0;
-      isGrounded = true;
-    }
-  }
-  if (gp.xButton && isGrounded && !lastJump) {
-    playerVelY = 0.4;
-    isGrounded = false;
-  }
-  lastJump = gp.xButton;
-
-  // ---- Movement (left stick) ----
-  if (Math.abs(gp.sx) > 0.15 || Math.abs(gp.sy) > 0.15) {
-    var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
-    var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
-    forward.y = 0; forward.normalize();
-    right.y = 0; right.normalize();
-    var move = new THREE.Vector3();
-    move.addScaledVector(forward, -gp.sy);
-    move.addScaledVector(right, gp.sx);
-    move.normalize().multiplyScalar(gamepadMoveSpeed * 0.016);
-
-    // Maze wall collision (only in trials)
-    if (currentActiveGame === 'trials' && mazeWalls.length) {
-      var tryX = playerPos.x + move.x;
-      var tryZ = playerPos.z + move.z;
-      if (canMoveTo(tryX, playerPos.z)) playerPos.x = tryX;
-      if (canMoveTo(playerPos.x, tryZ)) playerPos.z = tryZ;
-    } else {
-      playerPos.add(move);
-    }
-    if (playerPos.y < groundY) playerPos.y = groundY;
-  }
-
-  // ---- Trials: labyrinth logic ----
-  if (currentActiveGame === 'trials') {
-    // Checkpoint rings progression
-    if (trialCheckpoints.length && trialCurrentIndex < trialCheckpoints.length) {
-      var cd = trialCheckpoints[trialCurrentIndex];
-      var cdx = playerPos.x - cd.x;
-      var cdz = playerPos.z - cd.z;
-      if (cdx * cdx + cdz * cdz < 12) {
-        trialCurrentIndex++;
-        var hudCp = document.getElementById('trial-hud');
-        if (hudCp) {
-          hudCp.innerText = trialCurrentIndex >= trialCheckpoints.length
-            ? 'Иди к золотому столбу!'
-            : 'Чекпоинт ' + trialCurrentIndex + ' / ' + trialCheckpoints.length;
-        }
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  let stickX = 0, stickY = 0;
+  for (let i = 0; i < pads.length; i++) {
+    const pad = pads[i];
+    if (pad && pad.connected) {
+      // Left stick: axes 0 (X) and 1 (Y)
+      stickX = pad.axes[0] || 0;
+      stickY = pad.axes[1] || 0;
+      // Cross-key fallback if stick is dead
+      if (Math.abs(stickX) < 0.15 && Math.abs(stickY) < 0.15) {
+        const up = pad.buttons[12] ? (pad.buttons[12].pressed ? 1 : 0) : 0;
+        const down = pad.buttons[13] ? (pad.buttons[13].pressed ? -1 : 0) : 0;
+        const left = pad.buttons[14] ? (pad.buttons[14].pressed ? -1 : 0) : 0;
+        const right = pad.buttons[15] ? (pad.buttons[15].pressed ? 1 : 0) : 0;
+        stickY = up + down;
+        stickX = right + left;
       }
-    }
-    // Win when reaching the goal pillar
-    if (!trialCompleted) {
-      var gx = trialGoalPos.x - playerPos.x;
-      var gz = trialGoalPos.z - playerPos.z;
-      if (gx * gx + gz * gz < 9) {
-        trialCompleted = true;
-        var hudWin = document.getElementById('trial-hud');
-        if (hudWin) hudWin.innerText = 'ЛАБИРИНТ ПРОЙДЕН!';
-      }
+      break;
     }
   }
+  if (Math.abs(stickX) < 0.15 && Math.abs(stickY) < 0.15) return;
 
-  // ---- Minecraft: place (R2) / destroy (L2) ----
-  if (currentActiveGame === 'minecraft' && pcScene) {
-    raycaster.setFromCamera(new THREE.Vector2(0, 0), pcCamera);
-    var objectsToCheck = pcScene.children.filter(function(o) { return o.isMesh && o !== highlightBox; });
-    var intersects = raycaster.intersectObjects(objectsToCheck);
-
-    if (intersects.length > 0) {
-      var hit = intersects[0];
-      if (hit.distance < 20) {
-        highlightBox.position.copy(hit.object.position);
-        highlightBox.visible = true;
-
-        // R2 -> place block on the face that was hit
-        if (gp.r2 && !lastR2) {
-          var normal = hit.face.normal.clone();
-          normal.transformDirection(hit.object.matrixWorld);
-          var newPos = hit.object.position.clone().add(normal.clone().multiplyScalar(2));
-          var newBlock = new THREE.Mesh(blockGeo, blockMat);
-          newBlock.position.copy(newPos);
-          pcScene.add(newBlock);
-          minecraftBlocks.push({ x: newPos.x, y: newPos.y, z: newPos.z });
-          sessionRef.update({ blocks: minecraftBlocks });
-        }
-
-        // L2 -> destroy the block (but not the base platform)
-        if (gp.l2 && !lastL2) {
-          var isBase = hit.object.geometry && hit.object.geometry.parameters && hit.object.geometry.parameters.width === 200;
-          if (!isBase) {
-            pcScene.remove(hit.object);
-            minecraftBlocks = minecraftBlocks.filter(function(b) {
-              return Math.abs(b.x - hit.object.position.x) > 0.1 ||
-                     Math.abs(b.y - hit.object.position.y) > 0.1 ||
-                     Math.abs(b.z - hit.object.position.z) > 0.1;
-            });
-            sessionRef.update({ blocks: minecraftBlocks });
-            highlightBox.visible = false;
-          }
-        }
-      } else {
-        highlightBox.visible = false;
-      }
-    } else {
-      highlightBox.visible = false;
-    }
-  }
-
-  lastL2 = gp.l2;
-  lastR2 = gp.r2;
-
-  // Echo suppression: don't fight over the same pos with the other device
-  if (!posSameAsWritten(playerPos.x, playerPos.y, playerPos.z, 0.001)) {
-    lastWrittenPos = { x: playerPos.x, y: playerPos.y, z: playerPos.z };
-    sessionRef.update({ pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z } });
-  }
+  var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+  var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
+  forward.y = 0; forward.normalize();
+  right.y = 0; right.normalize();
+  var move = new THREE.Vector3();
+  move.addScaledVector(forward, -stickY);
+  move.addScaledVector(right, stickX);
+  move.normalize().multiplyScalar(gamepadMoveSpeed * 0.016);
+  playerPos.add(move);
+  sessionRef.update({ pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z } });
 }
 
 function animatePC() {
@@ -796,13 +395,6 @@ function startVRGameEngine() {
   document.getElementById('ui-layer').style.display = 'none';
   document.getElementById('vr-container').style.display = 'block';
   isPlaying = true;
-  if (currentActiveGame === 'trials') {
-    var hud = document.getElementById('trial-hud');
-    if (hud) {
-      hud.style.display = 'block';
-      hud.innerText = 'Найди выход из лабиринта!';
-    }
-  }
 
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     DeviceOrientationEvent.requestPermission().then(resp => {
@@ -821,8 +413,6 @@ function startVRGameEngine() {
 function stopVRGameEngine() {
   isPlaying = false;
   document.getElementById('vr-container').style.display = 'none';
-  var hud = document.getElementById('trial-hud');
-  if (hud) hud.style.display = 'none';
   document.getElementById('ui-layer').style.display = 'flex';
   document.getElementById('step-role').style.display = 'none';
   document.getElementById('step-phone-wait').style.display = 'block';
@@ -831,13 +421,7 @@ function stopVRGameEngine() {
 
 function initVR3D() {
   scene = new THREE.Scene();
-  if (currentActiveGame === 'minecraft') {
-    initMinecraftEnvironment(scene);
-  } else if (currentActiveGame === 'trials') {
-    initTrialsEnvironment(scene);
-  } else {
-    buildCityEnvironment(scene);
-  }
+  buildCityEnvironment(scene);
 
   var leftView = document.getElementById('left-view');
   var rightView = document.getElementById('right-view');
@@ -917,8 +501,7 @@ function animateVR() {
     move.addScaledVector(right, joy.x);
     move.normalize().multiplyScalar(14 * 0.016);
     playerPos.add(move);
-    if (sessionRef && isPlaying && !posSameAsWritten(playerPos.x, playerPos.y, playerPos.z, 0.001)) {
-      lastWrittenPos = { x: playerPos.x, y: playerPos.y, z: playerPos.z };
+    if (sessionRef && isPlaying) {
       sessionRef.update({ pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z } });
     }
   }
