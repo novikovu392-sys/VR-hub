@@ -29,7 +29,7 @@
   #vr-container { width: 100vw; height: 100vh; display: none; position: relative; z-index: 10; }
   #left-view { position: absolute; top: 0; left: 0; width: 50%; height: 100%; overflow: hidden; }
   #right-view { position: absolute; top: 0; right: 0; width: 50%; height: 100%; overflow: hidden; }
-</style>
+  </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -170,7 +170,9 @@ function selectRole(r) {
         pcStreamActive = false;
       }
 
-      // Sync head rotation from the phone (skip position echo to avoid teleport-back)
+      // When the phone is the one driving movement (city, no PC gamepad),
+      // sync its position + rotation so the PC view follows.
+      if (pcGameActive) return;
       if (data.quat) {
         currentQuaternion.set(data.quat.x, data.quat.y, data.quat.z, data.quat.w);
       }
@@ -240,6 +242,10 @@ function launchGame(gameName) {
   playerVelY = 0;
   isGrounded = true;
   if (role === 'pc') {
+    pcGameActive = true;
+    // Movement basis on PC is LOCAL (not tied to the phone's sensors),
+    // so walking always works. In the trials you face INTO the maze.
+    pcMoveYaw = (gameName === 'trials') ? Math.PI : 0;
     initPCStreamScene();
     // Write the REAL spawn (maze start) to the DB atomically so the phone
     // never reads the stale (0,1.7,10) and teleports inside a wall.
@@ -250,6 +256,7 @@ function launchGame(gameName) {
 }
 
 function exitGameFromPC() {
+  pcGameActive = false;
   if (sessionRef) {
     sessionRef.update({ status: 'menu', game: null });
   }
@@ -348,7 +355,8 @@ function addMazeWall(sceneTarget, geo, mat, x, z, hx, hz) {
 }
 
 function canMoveTo(x, z) {
-  var R = 0.8;
+  // Small radius so corridors stay walkable; walls only block when really inside them
+  var R = 0.4;
   for (var i = 0; i < mazeWalls.length; i++) {
     var w = mazeWalls[i];
     var h = w.userData.half;
@@ -415,8 +423,10 @@ function initTrialsEnvironment(sceneTarget) {
     }
   }
 
-  // Spawn at the CENTER of the start cell so the player is never inside a wall
-  playerPos.set(offX + CELL / 2, 1.7, offZ + CELL / 2);
+  // Spawn at the CENTER of the start cell (cell 0,0 center = offX, offZ; its exit faces +Z)
+  targetQuaternion.setFromEuler(new THREE.Euler(0, Math.PI, 0, 'YXZ'));
+  currentQuaternion.copy(targetQuaternion);
+  playerPos.set(offX, 1.7, offZ);
   playerVelY = 0;
   isGrounded = true;
   trialCurrentIndex = 0;
@@ -505,60 +515,20 @@ function initPCStreamScene() {
 }
 
 let gamepadMoveSpeed = 14;
-let keys = {};
+let pcGameActive = false;
+let pcMoveYaw = 0;
 
-window.addEventListener('keydown', (e) => {
-  const k = e.key.toLowerCase();
-  if (['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d'].includes(k)) {
-    keys[k] = true;
-  }
-});
-window.addEventListener('keyup', (e) => {
-  const k = e.key.toLowerCase();
-  if (['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d'].includes(k)) {
-    keys[k] = false;
-  }
-});
-
-// Keyboard movement on PC (relative to camera yaw) - works with or without a gamepad
-function updateKeyboardMovement() {
-  if (!pcStreamActive || !sessionRef) return;
-  const x = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
-  const y = (keys.w ? 1 : 0) - (keys.s ? 1 : 0);
-  const ax = (keys.arrowright ? 1 : 0) - (keys.arrowleft ? 1 : 0);
-  const ay = (keys.arrowdown ? 1 : 0) - (keys.arrowup ? 1 : 0);
-  let sx = x + ax;
-  let sy = y + ay;
-  if (sx === 0 && sy === 0) return;
-
-  var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
-  var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
-  forward.y = 0; forward.normalize();
-  right.y = 0; right.normalize();
-  var move = new THREE.Vector3();
-  move.addScaledVector(forward, -sy);
-  move.addScaledVector(right, sx);
-  move.normalize().multiplyScalar(gamepadMoveSpeed * 0.016);
-
-  if (currentActiveGame === 'trials' && mazeWalls.length) {
-    var tryX = playerPos.x + move.x;
-    var tryZ = playerPos.z + move.z;
-    if (canMoveTo(tryX, playerPos.z)) playerPos.x = tryX;
-    if (canMoveTo(playerPos.x, tryZ)) playerPos.z = tryZ;
-  } else {
-    playerPos.add(move);
-  }
-
-  checkTrialsProgress();
-
-  if (!posSameAsWritten(playerPos.x, playerPos.y, playerPos.z, 0.001)) {
-    lastWrittenPos = { x: playerPos.x, y: playerPos.y, z: playerPos.z };
-    sessionRef.update({ pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z } });
-  }
+// PC movement is LOCAL (pcMoveYaw), not tied to the phone's sensors.
+// In the trials pcMoveYaw = PI, so the gamepad W faces INTO the maze.
+function getPcMoveBasis() {
+  var yaw = pcMoveYaw;
+  var forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+  var right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+  return { forward: forward, right: right };
 }
 
 function updateGamepadMovement() {
-  if (!pcStreamActive || !sessionRef) return;
+  if (!pcGameActive || !sessionRef) return;
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
   let stickX = 0, stickY = 0;
   for (let i = 0; i < pads.length; i++) {
@@ -581,13 +551,10 @@ function updateGamepadMovement() {
   }
   if (Math.abs(stickX) < 0.15 && Math.abs(stickY) < 0.15) return;
 
-  var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
-  var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
-  forward.y = 0; forward.normalize();
-  right.y = 0; right.normalize();
+  var basis = getPcMoveBasis();
   var move = new THREE.Vector3();
-  move.addScaledVector(forward, -stickY);
-  move.addScaledVector(right, stickX);
+  move.addScaledVector(basis.forward, -stickY);
+  move.addScaledVector(basis.right, stickX);
   move.normalize().multiplyScalar(gamepadMoveSpeed * 0.016);
 
   // Maze wall collision (only in trials)
@@ -616,10 +583,14 @@ function animatePC() {
 
   if (!pcRenderer || !pcCamera) return;
 
-  updateKeyboardMovement();
   updateGamepadMovement();
 
-  if (pcStreamActive) {
+  if (pcGameActive) {
+    // PC camera faces the same direction as W walks, so the view matches movement
+    currentQuaternion.setFromEuler(new THREE.Euler(0, pcMoveYaw, 0, 'YXZ'));
+    pcCamera.position.copy(playerPos);
+    pcCamera.quaternion.copy(currentQuaternion);
+  } else if (pcStreamActive) {
     currentQuaternion.slerp(targetQuaternion, 0.25);
     pcCamera.position.copy(playerPos);
     pcCamera.quaternion.copy(currentQuaternion);
@@ -734,7 +705,7 @@ function animateVR() {
 
   currentQuaternion.slerp(targetQuaternion, 0.25);
 
-  // Phone also supports a connected gamepad: left stick moves the player
+  // Phone movement: only the connected gamepad stick
   var joy = getGamepadMove();
   if (joy.x !== 0 || joy.y !== 0) {
     var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
