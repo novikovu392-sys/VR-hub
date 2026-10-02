@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>VR Hub - Multiplayer Sync</title>
+<title>Sunflower VR Hub - Multiplayer Sync</title>
 <style>
   html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0f1115; font-family: sans-serif; user-select: none; }
   #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #111; color: #fff; text-align: center; padding: 20px; box-sizing: border-box; }
@@ -29,7 +29,6 @@
   #vr-container { width: 100vw; height: 100vh; display: none; position: relative; z-index: 10; }
   #left-view { position: absolute; top: 0; left: 0; width: 50%; height: 100%; overflow: hidden; }
   #right-view { position: absolute; top: 0; right: 0; width: 50%; height: 100%; overflow: hidden; }
-  #trial-hud { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 22px; font-weight: bold; z-index: 950; text-shadow: 0 0 8px #000; display: none; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -39,7 +38,7 @@
 
 <div id="ui-layer">
   <div id="step-role">
-    <h1>VR Hub</h1>
+    <h1>Sunflower VR Hub</h1>
     <p>Выберите тип устройства для подключения.</p>
     <button class="btn" onclick="selectRole('pc')">Компьютер (ПК)</button><br>
     <button class="btn btn-sec" onclick="selectRole('phone')">Телефон (VR Cardboard)</button>
@@ -57,11 +56,10 @@
 <div id="pc-panel" style="display:none;">
   <div class="top-bar">
     <div class="left">
-      <h2 style="margin:0; color:#fff;">VR Hub — Панель ПК</h2>
+      <h2 style="margin:0; color:#fff;">Sunflower VR Hub — Панель ПК</h2>
       <p style="margin:5px 0 0 0; color:#4aa3df; font-size:16px;" id="pc-code-display">Код: ----</p>
     </div>
     <div class="right">
-      <button class="btn btn-sec" onclick="togglePcFullscreen()" id="pcFsBtn">Полный экран</button>
       <button class="btn btn-danger" onclick="exitGameFromPC()" id="pcExitBtn">Выйти из игры</button>
     </div>
   </div>
@@ -88,8 +86,6 @@
   <div id="right-view"></div>
 </div>
 
-<div id="trial-hud"></div>
-
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyACNRV8N38hQ3qDe_dk-QLScYMxXyewVt8",
@@ -113,7 +109,6 @@ let scene, cameraL, cameraR, rendererL, rendererR;
 let pcScene, pcCamera, pcRenderer;
 let isPlaying = false;
 let pcStreamActive = false;
-let pcFsState = false;
 let playerPos = new THREE.Vector3(0, 1.7, 10);
 let targetQuaternion = new THREE.Quaternion();
 let currentQuaternion = new THREE.Quaternion();
@@ -163,7 +158,7 @@ function selectRole(r) {
     document.getElementById('pc-panel').style.display = 'flex';
 
     sessionRef = db.ref('sessions/' + sessionCode);
-    sessionRef.set({ status: 'menu', game: null, fs: false, quat: {x:0,y:0,z:0,w:1}, pos: {x:0,y:1.7,z:10} });
+    sessionRef.set({ status: 'menu', game: null, quat: {x:0,y:0,z:0,w:1}, pos: {x:0,y:1.7,z:10} });
 
     sessionRef.on('value', (snapshot) => {
       const data = snapshot.val();
@@ -182,9 +177,6 @@ function selectRole(r) {
       if (data.pos && !posSameAsWritten(data.pos.x, data.pos.y, data.pos.z)) {
         playerPos.set(data.pos.x, data.pos.y, data.pos.z);
       }
-      updateFsButton(!!data.fs);
-
-
     });
 
     initPCStreamScene();
@@ -224,17 +216,6 @@ function joinSession() {
           stopVRGameEngine();
         }
 
-        // Fullscreen button on PC controls the PHONE fullscreen
-        if (val.fs !== undefined) {
-          if (val.fs) {
-            if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-              document.documentElement.requestFullscreen().catch(function(){});
-            }
-          } else if (document.fullscreenElement && document.exitFullscreen) {
-            document.exitFullscreen();
-          }
-        }
-
         // Sync position + orientation from PC (skip our own echo)
         if (isPlaying && val.pos && !posSameAsWritten(val.pos.x, val.pos.y, val.pos.z)) {
           playerPos.set(val.pos.x, val.pos.y, val.pos.z);
@@ -266,21 +247,9 @@ function launchGame(gameName) {
   }
 }
 
-function togglePcFullscreen() {
-  if (!sessionRef) return;
-  pcFsState = !pcFsState;
-  sessionRef.update({ fs: pcFsState });
-}
-
-function updateFsButton(fs) {
-  pcFsState = !!fs;
-  const btn = document.getElementById('pcFsBtn');
-  if (btn) btn.innerText = pcFsState ? 'Свернуть экран' : 'Полный экран';
-}
-
 function exitGameFromPC() {
   if (sessionRef) {
-    sessionRef.update({ status: 'menu', game: null, fs: false });
+    sessionRef.update({ status: 'menu', game: null });
   }
 }
 
@@ -361,6 +330,10 @@ function generateMaze(rows, cols) {
     cells[nr][nc].vis = true;
     stack.push([nr, nc]);
   }
+  // Carve an entrance at the bottom edge of the start cell (0,0)
+  cells[0][0].walls.bottom = false;
+  // Carve an exit at the top edge of the goal cell (rows-1, cols-1)
+  cells[rows-1][cols-1].walls.top = false;
   return cells;
 }
 
@@ -383,22 +356,23 @@ function canMoveTo(x, z) {
 }
 
 function initTrialsEnvironment(sceneTarget) {
-  sceneTarget.background = new THREE.Color(0x87ceeb);
-  sceneTarget.fog = new THREE.Fog(0x87ceeb, 80, 400);
-  sceneTarget.add(new THREE.AmbientLight(0xffffff, 0.7));
+  sceneTarget.background = new THREE.Color(0x2c3e50);
+  sceneTarget.fog = new THREE.Fog(0x2c3e50, 60, 220);
+  sceneTarget.add(new THREE.AmbientLight(0xffffff, 0.65));
   var sun = new THREE.DirectionalLight(0xffffff, 1.0);
-  sun.position.set(50, 200, 50);
+  sun.position.set(80, 120, 60);
   sceneTarget.add(sun);
 
-  var ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0x7aa87a }));
+  var ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: 0x5a6b52 }));
   ground.rotation.x = -Math.PI / 2;
   sceneTarget.add(ground);
 
-  var ROWS = 9, COLS = 9, CELL = 6, WALL_H = 6;
+  // Larger, denser maze so it reads as a real labyrinth
+  var ROWS = 13, COLS = 13, CELL = 5, WALL_H = 7;
   var maze = generateMaze(ROWS, COLS);
-  var wallMat = new THREE.MeshStandardMaterial({ color: 0x9a6a4a });
-  var horGeo = new THREE.BoxGeometry(CELL, WALL_H, 0.8);
-  var verGeo = new THREE.BoxGeometry(0.8, WALL_H, CELL);
+  var wallMat = new THREE.MeshStandardMaterial({ color: 0x8a6a4a });
+  var horGeo = new THREE.BoxGeometry(CELL + 0.8, WALL_H, 0.8);
+  var verGeo = new THREE.BoxGeometry(0.8, WALL_H, CELL + 0.8);
   mazeWalls = [];
   var offX = -((COLS - 1) * CELL) / 2;
   var offZ = -((ROWS - 1) * CELL) / 2;
@@ -408,37 +382,38 @@ function initTrialsEnvironment(sceneTarget) {
       var cx = offX + c * CELL;
       var cz = offZ + r * CELL;
       var cell = maze[r][c];
-      if (cell.walls.top) addMazeWall(sceneTarget, horGeo, wallMat, cx, cz - CELL / 2, CELL, 0.8);
-      if (cell.walls.bottom) addMazeWall(sceneTarget, horGeo, wallMat, cx, cz + CELL / 2, CELL, 0.8);
-      if (cell.walls.left) addMazeWall(sceneTarget, verGeo, wallMat, cx - CELL / 2, cz, 0.8, CELL);
-      if (cell.walls.right) addMazeWall(sceneTarget, verGeo, wallMat, cx + CELL / 2, cz, 0.8, CELL);
+      if (cell.walls.top) addMazeWall(sceneTarget, horGeo, wallMat, cx, cz - CELL / 2, CELL + 0.8, 0.8);
+      if (cell.walls.bottom) addMazeWall(sceneTarget, horGeo, wallMat, cx, cz + CELL / 2, CELL + 0.8, 0.8);
+      if (cell.walls.left) addMazeWall(sceneTarget, verGeo, wallMat, cx - CELL / 2, cz, 0.8, CELL + 0.8);
+      if (cell.walls.right) addMazeWall(sceneTarget, verGeo, wallMat, cx + CELL / 2, cz, 0.8, CELL + 0.8);
     }
   }
 
   var gx = offX + (COLS - 1) * CELL;
   var gz = offZ + (ROWS - 1) * CELL;
-  var goal = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 6, 16), new THREE.MeshStandardMaterial({ color: 0xf1c40f, emissive: 0x8a6d00, emissiveIntensity: 0.5 }));
-  goal.position.set(gx, 3, gz);
+  var goal = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 7, 16), new THREE.MeshStandardMaterial({ color: 0xf1c40f, emissive: 0x8a6d00, emissiveIntensity: 0.6 }));
+  goal.position.set(gx, 3.5, gz);
   sceneTarget.add(goal);
 
   trialCheckpoints = [];
   var ringMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, side: THREE.DoubleSide });
-  var ringGeo = new THREE.RingGeometry(2.3, 2.9, 24);
+  var ringGeo = new THREE.RingGeometry(2.0, 2.5, 24);
   for (var rr = 0; rr < ROWS; rr++) {
     for (var cc = 0; cc < COLS; cc++) {
-      if ((rr * COLS + cc) % 8 === 0 && (rr !== 0 || cc !== 0) && !(rr === ROWS - 1 && cc === COLS - 1)) {
+      if ((rr * COLS + cc) % 12 === 0 && (rr !== 0 || cc !== 0) && !(rr === ROWS - 1 && cc === COLS - 1)) {
         var chx = offX + cc * CELL;
         var chz = offZ + rr * CELL;
         var ring = new THREE.Mesh(ringGeo, ringMat);
         ring.rotation.x = -Math.PI / 2;
-        ring.position.set(chx, 2.6, chz);
+        ring.position.set(chx, 2.4, chz);
         sceneTarget.add(ring);
         trialCheckpoints.push(new THREE.Vector3(chx, 1.7, chz));
       }
     }
   }
 
-  playerPos.set(offX, 1.7, offZ);
+  // Spawn just inside the entrance (cell 0,0), facing into the maze
+  playerPos.set(offX, 1.7, offZ + CELL / 2);
   playerVelY = 0;
   isGrounded = true;
   trialCurrentIndex = 0;
