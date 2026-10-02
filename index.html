@@ -91,7 +91,8 @@ function handleOrientation(e) {
     isCalibrated = true;
   }
 
-  targetQuaternion.copy(baseOrientation).multiply(rawQ);
+  // Correct order: world-frame relative rotation = rawQ * baseOrientation
+  targetQuaternion.copy(rawQ).multiply(baseOrientation);
 }
 
 function init3D() {
