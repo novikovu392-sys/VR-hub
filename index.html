@@ -22,8 +22,8 @@ body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; u
 
 <div id="menu">
   <h1>VR Hub: Город</h1>
-  <p style="margin-bottom:20px; color:#aaa; max-width:400px;">Нажмите кнопку, глядя прямо перед собой в Cardboard.</p>
-  <button class="btn" onclick="startGame()">Калибровать и войти</button>
+  <p style="margin-bottom:20px; color:#aaa; max-width:400px;">Держите телефон прямо и нажмите кнопку старта.</p>
+  <button class="btn" onclick="startGame()">Начать VR игру</button>
 </div>
 
 <div id="vr-container">
@@ -39,8 +39,6 @@ let playerPos = new THREE.Vector3(0, 1.7, 10);
 
 let targetQuaternion = new THREE.Quaternion();
 let currentQuaternion = new THREE.Quaternion();
-
-// Calibration reference quaternions
 let baseOrientation = new THREE.Quaternion();
 let isCalibrated = false;
 
@@ -89,12 +87,10 @@ function handleOrientation(e) {
   rawQ.multiply(q0.setFromAxisAngle(zee, -window.orientation || 0));
 
   if (!isCalibrated) {
-    // Instant zero calibration on start click: current pose becomes forward (identity relative)
     baseOrientation.copy(rawQ).invert();
     isCalibrated = true;
   }
 
-  // Relative rotation from calibration pose
   targetQuaternion.copy(baseOrientation).multiply(rawQ);
 }
 
@@ -246,7 +242,6 @@ function animate() {
   requestAnimationFrame(animate);
 
   updateMovement();
-  pollCalibration = true;
   pollGamepad();
 
   currentQuaternion.slerp(targetQuaternion, 0.15);
