@@ -104,6 +104,7 @@ let scene, cameraL, cameraR, rendererL, rendererR;
 let pcScene, pcCamera, pcRenderer;
 let isPlaying = false;
 let pcStreamActive = false;
+let pcFsState = false;
 let playerPos = new THREE.Vector3(0, 1.7, 10);
 let targetQuaternion = new THREE.Quaternion();
 let currentQuaternion = new THREE.Quaternion();
@@ -219,15 +220,15 @@ function exitGameFromPC() {
 }
 
 function pcTogglePhoneFullscreen() {
+  pcFsState = !pcFsState;
+  updateFsButton(pcFsState);
   if (sessionRef) {
-    sessionRef.once('value', (snap) => {
-      const cur = snap.val() ? !!snap.val().fs : false;
-      sessionRef.update({ fs: !cur });
-    });
+    sessionRef.update({ fs: pcFsState });
   }
 }
 
 function updateFsButton(fsState) {
+  pcFsState = fsState;
   const btn = document.getElementById('pcFsBtn');
   if (btn) {
     btn.innerText = fsState ? 'Отключить полный экран' : 'На весь экран (телефон)';
