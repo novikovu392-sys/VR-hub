@@ -2,18 +2,18 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>VR Hub - City</title>
 <style>
-  body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; user-select: none; }
-  #menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #111; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; color: #fff; text-align: center; padding: 20px; }
-  #menu h1 { font-size: 32px; margin-bottom: 10px; color: #4aa3df; }
-  #menu p { color: #aaa; max-width: 400px; margin-bottom: 30px; font-size: 16px; line-height: 1.4; }
-  .btn { padding: 16px 32px; font-size: 20px; background: #4aa3df; color: #fff; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 15px rgba(74, 163, 223, 0.4); }
-  .btn:active { background: #357abd; transform: scale(0.98); }
-  #fullscreenBtn { position: absolute; top: 20px; right: 20px; z-index: 2000; padding: 10px 18px; font-size: 14px; background: rgba(50,50,50,0.8); color: #fff; border: 1px solid #777; border-radius: 8px; cursor: pointer; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; user-select: none; -webkit-user-select: none; }
+  #menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #111; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; color: #fff; text-align: center; padding: 20px; pointer-events: auto; }
+  #menu h1 { font-size: 30px; margin-bottom: 10px; color: #4aa3df; }
+  #menu p { color: #aaa; max-width: 380px; margin-bottom: 30px; font-size: 15px; line-height: 1.45; }
+  .btn { padding: 16px 34px; font-size: 20px; color: #fff; background: #4aa3df; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; display: inline-block; }
+  .btn:active { background: #357abd; }
+  #fullscreenBtn { position: absolute; top: 16px; right: 16px; z-index: 2000; padding: 10px 18px; font-size: 14px; color: #fff; background: rgba(40,40,40,0.85); border: 1px solid #666; border-radius: 8px; cursor: pointer; }
   #vr-container { width: 100vw; height: 100vh; display: none; position: relative; z-index: 10; }
-  #left-view { position: absolute; top: 0; left: 0; width: 50%; height: 100%; overflow: hidden; border-right: 2px solid #000; }
+  #left-view { position: absolute; top: 0; left: 0; width: 50%; height: 100%; overflow: hidden; }
   #right-view { position: absolute; top: 0; right: 0; width: 50%; height: 100%; overflow: hidden; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -24,7 +24,7 @@
 
 <div id="menu">
   <h1>VR Hub: Город</h1>
-  <p>Положите телефон в Cardboard вертикально. Нажмите кнопку и держите ровно перед собой.</p>
+  <p>Вставьте телефон в Cardboard, нажмите кнопку и смотрите прямо. Положение при старте станет направлением "вперёд".</p>
   <button class="btn" onclick="startGame()">Начать VR игру</button>
 </div>
 
@@ -41,21 +41,20 @@ let playerPos = new THREE.Vector3(0, 1.7, 10);
 
 let targetQuaternion = new THREE.Quaternion();
 let currentQuaternion = new THREE.Quaternion();
-let baseEuler = null;
+let baseOrientation = null;
 
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().catch(err => {});
+    document.documentElement.requestFullscreen().catch(function(){});
   } else {
-    if (document.exitFullscreen) {
-      document.exitFullscreen();
-    }
+    if (document.exitFullscreen) document.exitFullscreen();
   }
 }
 
 function startGame() {
+  // iOS 13+ permission
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    DeviceOrientationEvent.requestPermission().then(response => {
+    DeviceOrientationEvent.requestPermission().then(function(response) {
       if (response === 'granted') {
         window.addEventListener('deviceorientation', handleOrientation, true);
       }
@@ -70,99 +69,112 @@ function startGame() {
   init3D();
 }
 
+function getScreenAngle() {
+  if (screen.orientation && typeof screen.orientation.angle === 'number') {
+    return screen.orientation.angle;
+  }
+  return window.orientation || 0;
+}
+
 function handleOrientation(e) {
   if (e.alpha === null || e.beta === null || e.gamma === null) return;
 
-  // Convert device orientation to radians
-  const alpha = THREE.MathUtils.degToRad(e.alpha);
-  const beta = THREE.MathUtils.degToRad(e.beta);
-  const gamma = THREE.MathUtils.degToRad(e.gamma);
+  var alpha = THREE.MathUtils.degToRad(e.alpha);
+  var beta = THREE.MathUtils.degToRad(e.beta);
+  var gamma = THREE.MathUtils.degToRad(e.gamma);
 
-  const zee = new THREE.Vector3(0, 0, 1);
-  const euler = new THREE.Euler();
-  const q0 = new THREE.Quaternion();
-  const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
+  // Device-frame quaternion (portrait reference), YXZ order
+  var quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(beta, alpha, -gamma, 'YXZ'));
 
-  // YXZ order works best for mobile VR head tracking in landscape
-  euler.set(beta, alpha, -gamma, 'YXZ');
-  let q = new THREE.Quaternion().setFromEuler(euler);
-  q.multiply(q1);
-  q.multiply(q0.setFromAxisAngle(zee, -window.orientation || 0));
-
-  if (!baseEuler) {
-    baseEuler = q.clone().invert();
+  // Landscape (Cardboard) correction: rotate around world Z by current screen angle
+  var screenAngle = getScreenAngle();
+  if (screenAngle !== 0) {
+    var zQuat = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(0, 0, 1),
+      -THREE.MathUtils.degToRad(screenAngle)
+    );
+    quat.multiply(zQuat);
   }
 
-  targetQuaternion.copy(baseEuler).multiply(q);
+  // Calibrate at start: whatever pose the phone is in now = "forward"
+  if (!baseOrientation) {
+    baseOrientation = quat.clone().invert();
+  }
+
+  targetQuaternion.copy(baseOrientation).multiply(quat);
 }
 
 function init3D() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87ceeb);
-  scene.fog = new THREE.FogExp2(0x87ceeb, 0.015);
+  scene.fog = new THREE.FogExp2(0x87ceeb, 0.012);
 
-  const aspect = (window.innerWidth / 2) / window.innerHeight;
+  var aspect = (window.innerWidth / 2) / window.innerHeight;
   cameraL = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
   cameraR = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
 
-  rendererL = new THREE.WebGLRenderer({ antialias: true });
+  rendererL = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   rendererL.setSize(window.innerWidth / 2, window.innerHeight);
   rendererL.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   document.getElementById('left-view').appendChild(rendererL.domElement);
 
-  rendererR = new THREE.WebGLRenderer({ antialias: true });
+  rendererR = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   rendererR.setSize(window.innerWidth / 2, window.innerHeight);
   rendererR.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   document.getElementById('right-view').appendChild(rendererR.domElement);
 
-  // Lighting
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-  scene.add(ambientLight);
+  // Sun / sky
+  var sun = new THREE.DirectionalLight(0xfff2d9, 1.0);
+  sun.position.set(80, 200, 60);
+  scene.add(sun);
 
-  const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-  dirLight.position.set(100, 300, 100);
-  scene.add(dirLight);
+  var ambient = new THREE.AmbientLight(0xffffff, 0.65);
+  scene.add(ambient);
 
-  // Ground & Roads
-  const floorGeo = new THREE.PlaneGeometry(800, 800);
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
-  const floor = new THREE.Mesh(floorGeo, floorMat);
-  floor.rotation.x = -Math.PI / 2;
-  scene.add(floor);
+  // Ground
+  var ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(1000, 1000),
+    new THREE.MeshStandardMaterial({ color: 0x3a3f45 })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  scene.add(ground);
 
-  const roadMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
-  for (let i = -300; i <= 300; i += 60) {
-    const roadX = new THREE.Mesh(new THREE.PlaneGeometry(16, 800), roadMat);
-    roadX.rotation.x = -Math.PI / 2;
-    roadX.position.set(i, 0.02, 0);
-    scene.add(roadX);
+  // Roads grid
+  var roadMat = new THREE.MeshStandardMaterial({ color: 0x2a2e33 });
+  for (var i = -360; i <= 360; i += 80) {
+    var roadA = new THREE.Mesh(new THREE.PlaneGeometry(14, 1000), roadMat);
+    roadA.rotation.x = -Math.PI / 2;
+    roadA.position.set(i, 0.02, 0);
+    scene.add(roadA);
 
-    const roadZ = new THREE.Mesh(new THREE.PlaneGeometry(800, 16), roadMat);
-    roadZ.rotation.x = -Math.PI / 2;
-    roadZ.position.set(0, 0.02, i);
-    scene.add(roadZ);
+    var roadB = new THREE.Mesh(new THREE.PlaneGeometry(1000, 14), roadMat);
+    roadB.rotation.x = -Math.PI / 2;
+    roadB.position.set(0, 0.02, i);
+    scene.add(roadB);
   }
 
-  // Spacious City Buildings
-  const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-  const colors = [0x555566, 0x666677, 0x776666, 0x445566, 0x665555];
+  // Buildings on spacious blocks
+  var boxGeo = new THREE.BoxGeometry(1, 1, 1);
+  var colors = [0x7d8590, 0x8a93a3, 0x9a8f86, 0x6f7d92, 0x86796f];
 
-  for (let x = -280; x <= 280; x += 60) {
-    for (let z = -280; z <= 280; z += 60) {
-      if (Math.abs(x) < 30 && Math.abs(z) < 30) continue; // Center spawn clear
+  for (var x = -340; x <= 340; x += 80) {
+    for (var z = -340; z <= 340; z += 80) {
+      // Leave the center block (spawn area) clear
+      if (Math.abs(x) < 40 && Math.abs(z) < 40) continue;
 
-      const offsets = [-16, 16];
-      for (let ox of offsets) {
-        for (let oz of offsets) {
-          const bx = x + ox;
-          const bz = z + oz;
-          const h = Math.random() * 60 + 20;
-          const mat = new THREE.MeshStandardMaterial({ color: colors[Math.floor(Math.random() * colors.length)] });
-          const building = new THREE.Mesh(boxGeo, mat);
-          building.scale.set(22, h, 22);
-          building.position.set(bx, h / 2, bz);
-          scene.add(building);
-        }
+      var spots = [
+        [x - 20, z - 20], [x - 20, z + 20],
+        [x + 20, z - 20], [x + 20, z + 20]
+      ];
+      for (var s = 0; s < spots.length; s++) {
+        var bx = spots[s][0];
+        var bz = spots[s][1];
+        var h = Math.random() * 55 + 18;
+        var mat = new THREE.MeshStandardMaterial({ color: colors[Math.floor(Math.random() * colors.length)] });
+        var building = new THREE.Mesh(boxGeo, mat);
+        building.scale.set(24, h, 24);
+        building.position.set(bx, h / 2, bz);
+        scene.add(building);
       }
     }
   }
@@ -176,8 +188,8 @@ function init3D() {
 
 function onWindowResize() {
   if (!isPlaying) return;
-  const w = window.innerWidth / 2;
-  const h = window.innerHeight;
+  var w = window.innerWidth / 2;
+  var h = window.innerHeight;
   rendererL.setSize(w, h);
   rendererR.setSize(w, h);
   cameraL.aspect = w / h;
@@ -201,43 +213,40 @@ function onKeyUp(e) {
 }
 
 function updateMovement() {
-  let speed = 0.25;
-  let forwardDir = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
-  forwardDir.y = 0;
-  forwardDir.normalize();
-  let rightDir = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
-  rightDir.y = 0;
-  rightDir.normalize();
+  var speed = 0.25;
+  var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+  forward.y = 0;
+  forward.normalize();
+  var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
+  right.y = 0;
+  right.normalize();
 
-  let moveVec = new THREE.Vector3();
-  if (moveForward) moveVec.add(forwardDir);
-  if (moveBackward) moveVec.sub(forwardDir);
-  if (moveLeft) moveVec.sub(rightDir);
-  if (moveRight) moveVec.add(rightDir);
-  moveVec.normalize();
+  var mv = new THREE.Vector3();
+  if (moveForward) mv.add(forward);
+  if (moveBackward) mv.sub(forward);
+  if (moveLeft) mv.sub(right);
+  if (moveRight) mv.add(right);
+  if (mv.lengthSq() > 0) mv.normalize();
 
-  playerPos.addScaledVector(moveVec, speed);
-  playerPos.x = Math.max(-350, Math.min(350, playerPos.x));
-  playerPos.z = Math.max(-350, Math.min(350, playerPos.z));
+  playerPos.addScaledVector(mv, speed);
+  playerPos.x = Math.max(-400, Math.min(400, playerPos.x));
+  playerPos.z = Math.max(-400, Math.min(400, playerPos.z));
 }
 
 function pollGamepad() {
-  const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-  for (let i = 0; i < gamepads.length; i++) {
-    const gp = gamepads[i];
+  var gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (var i = 0; i < gamepads.length; i++) {
+    var gp = gamepads[i];
     if (gp) {
-      let ax = gp.axes[0];
-      let ay = gp.axes[1];
+      var ax = gp.axes[0];
+      var ay = gp.axes[1];
       if (Math.abs(ax) > 0.1 || Math.abs(ay) > 0.1) {
-        let forwardDir = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
-        forwardDir.y = 0; forwardDir.normalize();
-        let rightDir = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
-        rightDir.y = 0; rightDir.normalize();
-
-        let moveVec = new THREE.Vector3();
-        moveVec.addScaledVector(forwardDir, -ay);
-        moveVec.addScaledVector(rightDir, ax);
-        playerPos.addScaledVector(moveVec, 0.25);
+        var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+        forward.y = 0; forward.normalize();
+        var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
+        right.y = 0; right.normalize();
+        playerPos.addScaledVector(forward, -ay * 0.25);
+        playerPos.addScaledVector(right, ax * 0.25);
       }
     }
   }
@@ -250,16 +259,16 @@ function animate() {
   updateMovement();
   pollGamepad();
 
-  currentQuaternion.slerp(targetQuaternion, 0.2);
+  currentQuaternion.slerp(targetQuaternion, 0.25);
 
-  let ipd = 0.032;
-  let eyeOffsetL = new THREE.Vector3(-ipd, 0, 0).applyQuaternion(currentQuaternion);
-  let eyeOffsetR = new THREE.Vector3(ipd, 0, 0).applyQuaternion(currentQuaternion);
+  var ipd = 0.032;
+  var offL = new THREE.Vector3(-ipd, 0, 0).applyQuaternion(currentQuaternion);
+  var offR = new THREE.Vector3(ipd, 0, 0).applyQuaternion(currentQuaternion);
 
-  cameraL.position.copy(playerPos).add(eyeOffsetL);
+  cameraL.position.copy(playerPos).add(offL);
   cameraL.quaternion.copy(currentQuaternion);
 
-  cameraR.position.copy(playerPos).add(eyeOffsetR);
+  cameraR.position.copy(playerPos).add(offR);
   cameraR.quaternion.copy(currentQuaternion);
 
   rendererL.render(scene, cameraL);
