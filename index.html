@@ -22,7 +22,7 @@ body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; u
 
 <div id="menu">
   <h1>VR Hub: Город</h1>
-  <p style="margin-bottom:20px; color:#aaa; max-width:400px;">Держите телефон ровно вертикально и нажмите старт.</p>
+  <p style="margin-bottom:20px; color:#aaa; max-width:400px;">Держите телефон ровно и нажмите старт.</p>
   <button class="btn" type="button" onclick="startGame()">Начать VR игру</button>
 </div>
 
@@ -71,8 +71,9 @@ function startGame() {
 function handleOrientation(e) {
   if (e.alpha === null || e.beta === null || e.gamma === null) return;
 
+  // Convert angles, scale down beta/gamma sensitivity to fix excessive tilt
   const alpha = THREE.MathUtils.degToRad(e.alpha);
-  const beta = THREE.MathUtils.degToRad(e.beta);
+  const beta = THREE.MathUtils.degToRad(e.beta - 45); // offset for natural holding angle
   const gamma = THREE.MathUtils.degToRad(e.gamma);
 
   const zee = new THREE.Vector3(0, 0, 1);
