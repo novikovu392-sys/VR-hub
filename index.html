@@ -73,9 +73,9 @@
         <button class="btn" onclick="launchGame('city')">Запустить</button>
       </div>
       <div class="game-card">
-        <h3>Майнкрафт</h3>
-        <p>Строительство блоков, разрушение на L2/R2, прыжки на X.</p>
-        <button class="btn" onclick="launchGame('minecraft')">Запустить</button>
+        <h3>Испытания</h3>
+        <p>Прогрессия по чекпоинтам, прыжки на X.</p>
+        <button class="btn" onclick="launchGame('trials')">Запустить</button>
       </div>
     </div>
     <div id="pc-view-container"></div>
@@ -86,6 +86,8 @@
   <div id="left-view"></div>
   <div id="right-view"></div>
 </div>
+
+<div id="trial-hud" style="display:none; position:absolute; top:70px; left:50%; transform:translateX(-50%); color:#fff; font-size:22px; font-weight:bold; z-index:950; text-shadow:0 0 8px #000;"></div>
 
 <script>
 const firebaseConfig = {
@@ -223,6 +225,52 @@ let blockMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
 let highlightBox = null;
 let playerVelY = 0;
 let isGrounded = false;
+let trialCheckpoints = [];
+let trialCurrentIndex = 0;
+let trialCompleted = false;
+
+function initTrialsEnvironment(sceneTarget) {
+  sceneTarget.background = new THREE.Color(0x87ceeb);
+  sceneTarget.fog = new THREE.Fog(0x87ceeb, 80, 400);
+
+  sceneTarget.add(new THREE.AmbientLight(0xffffff, 0.7));
+  var sun = new THREE.DirectionalLight(0xffffff, 1.0);
+  sun.position.set(50, 200, 50);
+  sceneTarget.add(sun);
+
+  // Start platform
+  var start = new THREE.Mesh(
+    new THREE.BoxGeometry(8, 2, 8),
+    new THREE.MeshStandardMaterial({ color: 0x4aa3df })
+  );
+  start.position.set(0, -1, 0);
+  sceneTarget.add(start);
+
+  // A series of platforms (checkpoints) leading away, with gaps to jump
+  var platMat = new THREE.MeshStandardMaterial({ color: 0x27ae60 });
+  trialCheckpoints = [];
+  var positions = [
+    {x: 0,    z: -20, y: 0},
+    {x: -14,  z: -40, y: 2},
+    {x: 14,   z: -60, y: 4},
+    {x: -14,  z: -80, y: 6},
+    {x: 0,    z: -100, y: 8}
+  ];
+  positions.forEach(function(p, i) {
+    var plat = new THREE.Mesh(new THREE.BoxGeometry(6, 2, 6), platMat);
+    plat.position.set(p.x, p.y, p.z);
+    sceneTarget.add(plat);
+    trialCheckpoints.push(new THREE.Vector3(p.x, p.y + 1.7, p.z));
+  });
+
+  // Goal marker at the last checkpoint
+  var goal = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.5, 1.5, 4, 16),
+    new THREE.MeshStandardMaterial({ color: 0xf1c40f, emissive: 0x8a6d00 })
+  );
+  goal.position.set(0, 10, -100);
+  sceneTarget.add(goal);
+}
 
 function initMinecraftEnvironment(sceneTarget) {
   sceneTarget.background = new THREE.Color(0xa0e0ff);
@@ -296,6 +344,8 @@ function getGamepadControls() {
 
 function launchGame(gameName) {
   currentActiveGame = gameName;
+  trialCurrentIndex = 0;
+  trialCompleted = false;
   if (sessionRef) {
     sessionRef.update({ status: 'playing', game: gameName, blocks: [] });
   }
@@ -412,6 +462,8 @@ function initPCStreamScene() {
   pcScene = new THREE.Scene();
   if (currentActiveGame === 'minecraft') {
     initMinecraftEnvironment(pcScene);
+  } else if (currentActiveGame === 'trials') {
+    initTrialsEnvironment(pcScene);
   } else {
     buildCityEnvironment(pcScene);
   }
@@ -486,6 +538,34 @@ function updateGamepadMovement() {
     move.normalize().multiplyScalar(gamepadMoveSpeed * 0.016);
     playerPos.add(move);
     if (playerPos.y < groundY) playerPos.y = groundY;
+  }
+
+  // ---- Trials: check checkpoint progression ----
+  if (currentActiveGame === 'trials' && sessionRef) {
+    // Fall off the world -> reset to start
+    if (playerPos.y < -10) {
+      playerPos.set(0, 1.7, 0);
+      playerVelY = 0;
+      trialCurrentIndex = 0;
+      var hudReset = document.getElementById('trial-hud');
+      if (hudReset) hudReset.innerText = 'Чекпоинт 0 / ' + trialCheckpoints.length;
+    }
+    if (trialCheckpoints.length > 0) {
+      var nextCp = trialCheckpoints[trialCurrentIndex];
+      var dx = playerPos.x - nextCp.x;
+      var dy = playerPos.y - nextCp.y;
+      var dz = playerPos.z - nextCp.z;
+      if (dx*dx + dy*dy + dz*dz < 9) {
+        trialCurrentIndex++;
+        var hud = document.getElementById('trial-hud');
+        if (trialCurrentIndex >= trialCheckpoints.length) {
+          trialCompleted = true;
+          if (hud) hud.innerText = 'ИСПЫТАНИЕ ПРОЙДЕНО!';
+        } else if (hud) {
+          hud.innerText = 'Чекпоинт ' + trialCurrentIndex + ' / ' + trialCheckpoints.length;
+        }
+      }
+    }
   }
 
   // ---- Minecraft: place (R2) / destroy (L2) ----
@@ -565,6 +645,13 @@ function startVRGameEngine() {
   document.getElementById('ui-layer').style.display = 'none';
   document.getElementById('vr-container').style.display = 'block';
   isPlaying = true;
+  if (currentActiveGame === 'trials') {
+    var hud = document.getElementById('trial-hud');
+    if (hud) {
+      hud.style.display = 'block';
+      hud.innerText = 'Чекпоинт 0 / 5';
+    }
+  }
 
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     DeviceOrientationEvent.requestPermission().then(resp => {
@@ -583,6 +670,8 @@ function startVRGameEngine() {
 function stopVRGameEngine() {
   isPlaying = false;
   document.getElementById('vr-container').style.display = 'none';
+  var hud = document.getElementById('trial-hud');
+  if (hud) hud.style.display = 'none';
   document.getElementById('ui-layer').style.display = 'flex';
   document.getElementById('step-role').style.display = 'none';
   document.getElementById('step-phone-wait').style.display = 'block';
@@ -593,6 +682,8 @@ function initVR3D() {
   scene = new THREE.Scene();
   if (currentActiveGame === 'minecraft') {
     initMinecraftEnvironment(scene);
+  } else if (currentActiveGame === 'trials') {
+    initTrialsEnvironment(scene);
   } else {
     buildCityEnvironment(scene);
   }
