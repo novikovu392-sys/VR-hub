@@ -22,7 +22,7 @@ body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; u
 
 <div id="menu">
   <h1>VR Hub: Город</h1>
-  <p style="margin-bottom:20px; color:#aaa; max-width:400px;">Нажмите кнопку для запуска VR режима с плавным гироскопом.</p>
+  <p style="margin-bottom:20px; color:#aaa; max-width:400px;">Держите телефон ровно перед собой. Нажмите кнопку для старта.</p>
   <button class="btn" onclick="startGame()">Начать VR игру</button>
 </div>
 
@@ -37,9 +37,13 @@ let isPlaying = false;
 let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
 let playerPos = new THREE.Vector3(0, 1.7, 10);
 
-// Quaternion based smooth orientation for Cardboard VR
 let targetQuaternion = new THREE.Quaternion();
 let currentQuaternion = new THREE.Quaternion();
+
+// Calibration offsets
+let calibAlpha = null;
+let calibBeta = null;
+let calibGamma = null;
 
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
@@ -55,11 +59,12 @@ function startGame() {
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     DeviceOrientationEvent.requestPermission().then(response => {
       if (response === 'granted') {
-        window.addEventListener('deviceorientationthrough', handleOrientation, true);
+        window.addEventListener('deviceorientation', handleOrientation, true);
       }
     }).catch(console.error);
+  } else {
+    window.addEventListener('deviceorientation', handleOrientation, true);
   }
-  window.addEventListener('deviceorientation', handleOrientation, true);
 
   document.getElementById('menu').style.display = 'none';
   document.getElementById('vr-container').style.display = 'block';
@@ -70,15 +75,21 @@ function startGame() {
 function handleOrientation(e) {
   if (e.alpha === null || e.beta === null || e.gamma === null) return;
 
-  // Convert device orientation angles to Three.js coordinates
-  const alpha = THREE.MathUtils.degToRad(e.alpha);
-  const beta = THREE.MathUtils.degToRad(e.beta);
-  const gamma = THREE.MathUtils.degToRad(e.gamma);
+  if (calibAlpha === null) {
+    calibAlpha = e.alpha;
+    // Offset beta to 45 deg viewing angle so phone is held comfortably flat/tilted
+    calibBeta = e.beta - 45;
+    calibGamma = e.gamma;
+  }
+
+  let alpha = THREE.MathUtils.degToRad(e.alpha - calibAlpha);
+  let beta = THREE.MathUtils.degToRad(e.beta - calibBeta);
+  let gamma = THREE.MathUtils.degToRad(e.gamma - calibGamma);
 
   const zee = new THREE.Vector3(0, 0, 1);
   const kamer = new THREE.Euler();
   const q0 = new THREE.Quaternion();
-  const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // - PI/2 around X
+  const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
 
   kamer.set(beta, alpha, -gamma, 'YXZ');
   targetQuaternion.setFromEuler(kamer);
@@ -89,7 +100,7 @@ function handleOrientation(e) {
 function init3D() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87ceeb);
-  scene.fog = new THREE.FogExp2(0x87ceeb, 0.015);
+  scene.fog = new THREE.FogExp2(0x87ceeb, 0.012);
 
   const aspect = (window.innerWidth / 2) / window.innerHeight;
   cameraL = new THREE.PerspectiveCamera(70, aspect, 0.1, 1000);
@@ -112,24 +123,49 @@ function init3D() {
   dirLight.position.set(50, 200, 50);
   scene.add(dirLight);
 
-  const floorGeo = new THREE.PlaneGeometry(500, 500);
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
+  // Ground / Roads grid
+  const floorGeo = new THREE.PlaneGeometry(600, 600);
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI / 2;
   scene.add(floor);
 
+  // Add asphalt roads grid
+  const roadMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+  for (let i = -250; i <= 250; i += 40) {
+    const roadX = new THREE.Mesh(new THREE.PlaneGeometry(12, 600), roadMat);
+    roadX.rotation.x = -Math.PI / 2;
+    roadX.position.set(i, 0.01, 0);
+    scene.add(roadX);
+
+    const roadZ = new THREE.Mesh(new THREE.PlaneGeometry(600, 12), roadMat);
+    roadZ.rotation.x = -Math.PI / 2;
+    roadZ.position.set(0, 0.01, i);
+    scene.add(roadZ);
+  }
+
   const boxGeo = new THREE.BoxGeometry(1, 1, 1);
   const colors = [0x555555, 0x666677, 0x776666, 0x445566, 0x665544];
 
-  for (let x = -100; x <= 100; x += 12) {
-    for (let z = -100; z <= 100; z += 12) {
-      if (Math.abs(x) < 6 && Math.abs(z) < 6) continue;
-      const h = Math.random() * 40 + 10;
-      const mat = new THREE.MeshStandardMaterial({ color: colors[Math.floor(Math.random() * colors.length)] });
-      const building = new THREE.Mesh(boxGeo, mat);
-      building.scale.set(8, h, 8);
-      building.position.set(x, h / 2, z);
-      scene.add(building);
+  // Spacious city grid with blocks and wide streets
+  for (let x = -240; x <= 240; x += 40) {
+    for (let z = -240; z <= 240; z += 40) {
+      if (Math.abs(x) < 20 && Math.abs(z) < 20) continue;
+      
+      // Create 4 buildings per block separated by alleys
+      const offsets = [-10, 10];
+      for (let ox of offsets) {
+        for (let oz of offsets) {
+          const bx = x + ox;
+          const bz = z + oz;
+          const h = Math.random() * 50 + 15;
+          const mat = new THREE.MeshStandardMaterial({ color: colors[Math.floor(Math.random() * colors.length)] });
+          const building = new THREE.Mesh(boxGeo, mat);
+          building.scale.set(16, h, 16);
+          building.position.set(bx, h / 2, bz);
+          scene.add(building);
+        }
+      }
     }
   }
 
@@ -167,14 +203,7 @@ function onKeyUp(e) {
 }
 
 function updateMovement() {
-  let speed = 0.15;
-  let dir = new THREE.Vector3();
-  if (moveForward) dir.z -= 1;
-  if (moveBackward) dir.z += 1;
-  if (moveLeft) dir.x -= 1;
-  if (moveRight) dir.x += 1;
-  dir.normalize();
-  
+  let speed = 0.2;
   let forwardDir = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
   forwardDir.y = 0;
   forwardDir.normalize();
@@ -190,8 +219,8 @@ function updateMovement() {
   moveVec.normalize();
 
   playerPos.addScaledVector(moveVec, speed);
-  playerPos.x = Math.max(-95, Math.min(95, playerPos.x));
-  playerPos.z = Math.max(-95, Math.min(95, playerPos.z));
+  playerPos.x = Math.max(-280, Math.min(280, playerPos.x));
+  playerPos.z = Math.max(-280, Math.min(280, playerPos.z));
 }
 
 function pollGamepad() {
@@ -210,7 +239,7 @@ function pollGamepad() {
         let moveVec = new THREE.Vector3();
         moveVec.addScaledVector(forwardDir, -ay);
         moveVec.addScaledVector(rightDir, ax);
-        playerPos.addScaledVector(moveVec, 0.15);
+        playerPos.addScaledVector(moveVec, 0.2);
       }
     }
   }
@@ -223,17 +252,16 @@ function animate() {
   updateMovement();
   pollGamepad();
 
-  // Smooth slerp for quaternion rotation
   currentQuaternion.slerp(targetQuaternion, 0.1);
 
   let ipd = 0.032;
   let eyeOffsetL = new THREE.Vector3(-ipd, 0, 0).applyQuaternion(currentQuaternion);
-  let eyeOffsetR = new THREE.Vector3(ipd, 0, 0).applyQuaternion(currentQuaternion);
+  let eyeOffsetR = new THREE.Vector3(ipd, 0, 0).applyQuaternion(currentInitializer || currentQuaternion);
 
   cameraL.position.copy(playerPos).add(eyeOffsetL);
   cameraL.quaternion.copy(currentQuaternion);
 
-  cameraR.position.copy(playerPos).add(eyeOffsetR);
+  cameraR.position.copy(playerPos).add(new THREE.Vector3(ipd, 0, 0).applyQuaternion(currentQuaternion));
   cameraR.quaternion.copy(currentQuaternion);
 
   rendererL.render(scene, cameraL);
