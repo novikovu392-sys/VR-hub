@@ -190,6 +190,13 @@ function joinSession() {
           stopVRGameEngine();
         }
 
+        // Sync position + orientation from PC into the phone view
+        if (isPlaying && val.pos) {
+          playerPos.set(val.pos.x, val.pos.y, val.pos.z);
+        }
+        if (isPlaying && val.quat) {
+          targetQuaternion.set(val.quat.x, val.quat.y, val.quat.z, val.quat.w);
+        }
       });
     } else {
       document.getElementById('phone-status').innerText = 'Сессия не найдена!';
@@ -243,8 +250,7 @@ function handleOrientation(e) {
 
   if (sessionRef && isPlaying) {
     sessionRef.update({
-      quat: { x: targetQuaternion.x, y: targetQuaternion.y, z: targetQuaternion.z, w: targetQuaternion.w },
-      pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z }
+      quat: { x: targetQuaternion.x, y: targetQuaternion.y, z: targetQuaternion.z, w: targetQuaternion.w }
     });
   }
 }
@@ -463,7 +469,7 @@ function animateVR() {
 
   currentQuaternion.slerp(targetQuaternion, 0.25);
 
-  // Gamepad movement (left stick)
+  // Phone also supports a connected gamepad: left stick moves the player
   var joy = getGamepadMove();
   if (joy.x !== 0 || joy.y !== 0) {
     var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
