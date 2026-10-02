@@ -207,6 +207,8 @@ function joinSession() {
         const val = snap.val();
         if (!val) return;
         if (val.status === 'playing' && !isPlaying) {
+          // Set the game BEFORE building so the phone renders the right scene
+          if (val.game) currentActiveGame = val.game;
           startVRGameEngine();
         } else if (val.status === 'playing' && isPlaying && val.game && val.game !== currentActiveGame) {
           // New game launched on PC -> rebuild the phone scene
@@ -377,14 +379,15 @@ function initTrialsEnvironment(sceneTarget) {
   var offX = -((COLS - 1) * CELL) / 2;
   var offZ = -((ROWS - 1) * CELL) / 2;
 
+  // Build each wall exactly ONCE (adjacent cells share boundary flags)
   for (var r = 0; r < ROWS; r++) {
     for (var c = 0; c < COLS; c++) {
       var cx = offX + c * CELL;
       var cz = offZ + r * CELL;
       var cell = maze[r][c];
-      if (cell.walls.top) addMazeWall(sceneTarget, horGeo, wallMat, cx, cz - CELL / 2, CELL + 0.8, 0.8);
+      if (cell.walls.top && r === 0) addMazeWall(sceneTarget, horGeo, wallMat, cx, cz - CELL / 2, CELL + 0.8, 0.8);
       if (cell.walls.bottom) addMazeWall(sceneTarget, horGeo, wallMat, cx, cz + CELL / 2, CELL + 0.8, 0.8);
-      if (cell.walls.left) addMazeWall(sceneTarget, verGeo, wallMat, cx - CELL / 2, cz, 0.8, CELL + 0.8);
+      if (cell.walls.left && c === 0) addMazeWall(sceneTarget, verGeo, wallMat, cx - CELL / 2, cz, 0.8, CELL + 0.8);
       if (cell.walls.right) addMazeWall(sceneTarget, verGeo, wallMat, cx + CELL / 2, cz, 0.8, CELL + 0.8);
     }
   }
@@ -412,8 +415,8 @@ function initTrialsEnvironment(sceneTarget) {
     }
   }
 
-  // Spawn just inside the entrance (cell 0,0), facing into the maze
-  playerPos.set(offX, 1.7, offZ + CELL / 2);
+  // Spawn at the CENTER of the start cell so the player is never inside a wall
+  playerPos.set(offX + CELL / 2, 1.7, offZ + CELL / 2);
   playerVelY = 0;
   isGrounded = true;
   trialCurrentIndex = 0;
@@ -502,6 +505,57 @@ function initPCStreamScene() {
 }
 
 let gamepadMoveSpeed = 14;
+let keys = {};
+
+window.addEventListener('keydown', (e) => {
+  const k = e.key.toLowerCase();
+  if (['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d'].includes(k)) {
+    keys[k] = true;
+  }
+});
+window.addEventListener('keyup', (e) => {
+  const k = e.key.toLowerCase();
+  if (['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d'].includes(k)) {
+    keys[k] = false;
+  }
+});
+
+// Keyboard movement on PC (relative to camera yaw) - works with or without a gamepad
+function updateKeyboardMovement() {
+  if (!pcStreamActive || !sessionRef) return;
+  const x = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
+  const y = (keys.w ? 1 : 0) - (keys.s ? 1 : 0);
+  const ax = (keys.arrowright ? 1 : 0) - (keys.arrowleft ? 1 : 0);
+  const ay = (keys.arrowdown ? 1 : 0) - (keys.arrowup ? 1 : 0);
+  let sx = x + ax;
+  let sy = y + ay;
+  if (sx === 0 && sy === 0) return;
+
+  var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+  var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
+  forward.y = 0; forward.normalize();
+  right.y = 0; right.normalize();
+  var move = new THREE.Vector3();
+  move.addScaledVector(forward, -sy);
+  move.addScaledVector(right, sx);
+  move.normalize().multiplyScalar(gamepadMoveSpeed * 0.016);
+
+  if (currentActiveGame === 'trials' && mazeWalls.length) {
+    var tryX = playerPos.x + move.x;
+    var tryZ = playerPos.z + move.z;
+    if (canMoveTo(tryX, playerPos.z)) playerPos.x = tryX;
+    if (canMoveTo(playerPos.x, tryZ)) playerPos.z = tryZ;
+  } else {
+    playerPos.add(move);
+  }
+
+  checkTrialsProgress();
+
+  if (!posSameAsWritten(playerPos.x, playerPos.y, playerPos.z, 0.001)) {
+    lastWrittenPos = { x: playerPos.x, y: playerPos.y, z: playerPos.z };
+    sessionRef.update({ pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z } });
+  }
+}
 
 function updateGamepadMovement() {
   if (!pcStreamActive || !sessionRef) return;
@@ -562,6 +616,7 @@ function animatePC() {
 
   if (!pcRenderer || !pcCamera) return;
 
+  updateKeyboardMovement();
   updateGamepadMovement();
 
   if (pcStreamActive) {
