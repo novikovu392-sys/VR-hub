@@ -25,6 +25,10 @@
   .game-card p { font-size: 13px; color: #aaa; margin: 0 0 12px 0; }
   #pc-view-container { flex: 1; background: #000; border-radius: 12px; overflow: hidden; position: relative; min-width: 0; }
   #pc-view-container canvas { display: block; width: 100% !important; height: 100% !important; }
+  #joy-zone { position: absolute; left: 20px; bottom: 20px; width: 140px; height: 140px; z-index: 2000; }
+  #joy-base { position: absolute; width: 120px; height: 120px; border: 2px solid rgba(255,255,255,0.7); border-radius: 50%; background: rgba(0,0,0,0.2); }
+  #joy-knob { position: absolute; top: 40px; left: 40px; width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.5); }
+  #joy-label { position: absolute; bottom: -22px; left: 20px; color: #fff; font-size: 13px; }
   #vr-container { width: 100vw; height: 100vh; display: none; position: relative; z-index: 10; }
   #left-view { position: absolute; top: 0; left: 0; width: 50%; height: 100%; overflow: hidden; }
   #right-view { position: absolute; top: 0; right: 0; width: 50%; height: 100%; overflow: hidden; }
@@ -81,6 +85,10 @@
 <div id="vr-container">
   <div id="left-view"></div>
   <div id="right-view"></div>
+  <div id="joy-zone">
+    <div id="joy-base"><div id="joy-knob"></div></div>
+    <div id="joy-label">движение</div>
+  </div>
 </div>
 
 <script>
@@ -377,6 +385,7 @@ function startVRGameEngine() {
   document.getElementById('vr-container').style.display = 'block';
   document.getElementById('phoneFsButton').style.display = 'block';
   isPlaying = true;
+  setupJoystick();
 
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     DeviceOrientationEvent.requestPermission().then(resp => {
@@ -450,11 +459,68 @@ function onWindowResize() {
   }
 }
 
+let joyActive = false;
+let joyVec = { x: 0, y: 0 };
+let moveSpeed = 12;
+
+function setupJoystick() {
+  const base = document.getElementById('joy-base');
+  const knob = document.getElementById('joy-knob');
+  if (!base || !knob) return;
+  const zone = document.getElementById('joy-zone');
+  const maxR = 40;
+
+  function onMove(e) {
+    const touch = e.touches ? e.touches[0] : e;
+    const rect = zone.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    let dx = touch.clientX - cx;
+    let dy = touch.clientY - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > maxR) {
+      dx = dx / dist * maxR;
+      dy = dy / dist * maxR;
+    }
+    knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    joyVec.x = dx / maxR;
+    joyVec.y = dy / maxR;
+  }
+
+  function onEnd() {
+    joyVec.x = 0;
+    joyVec.y = 0;
+    knob.style.transform = 'translate(0,0)';
+    joyActive = false;
+  }
+
+  zone.addEventListener('touchstart', (e) => { joyActive = true; onMove(e); e.preventDefault(); }, { passive: false });
+  zone.addEventListener('touchmove', (e) => { if (joyActive) onMove(e); e.preventDefault(); }, { passive: false });
+  zone.addEventListener('touchend', onEnd);
+  zone.addEventListener('touchcancel', onEnd);
+}
+
 function animateVR() {
   if (!isPlaying || role !== 'phone') return;
   requestAnimationFrame(animateVR);
 
   currentQuaternion.slerp(targetQuaternion, 0.25);
+
+  // Apply joystick movement
+  if (joyVec.x !== 0 || joyVec.y !== 0) {
+    var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+    var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
+    forward.y = 0; forward.normalize();
+    right.y = 0; right.normalize();
+    var move = new THREE.Vector3();
+    move.addScaledVector(forward, -joyVec.y);
+    move.addScaledVector(right, joyVec.x);
+    move.normalize().multiplyScalar(moveSpeed * 0.016);
+    playerPos.add(move);
+    if (sessionRef && isPlaying) {
+      sessionRef.update({ pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z } });
+    }
+  }
 
   var ipd = 0.032;
   var offL = new THREE.Vector3(-ipd, 0, 0).applyQuaternion(currentQuaternion);
