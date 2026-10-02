@@ -1,29 +1,31 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>VR Hub - City</title>
 <style>
-body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; user-select: none; }
-#menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #111; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; color: #fff; text-align: center; padding: 20px; pointer-events: auto; }
-#menu h1 { font-size: 36px; margin-bottom: 20px; color: #4aa3df; }
-.btn { padding: 15px 30px; font-size: 20px; background: #4aa3df; color: #fff; border: none; border-radius: 8px; cursor: pointer; margin: 10px; pointer-events: auto; z-index: 101; }
-.btn:hover { background: #357abd; }
-#fullscreenBtn { position: absolute; top: 20px; right: 20px; z-index: 200; padding: 10px 20px; font-size: 16px; background: #333; color: #fff; border: 1px solid #555; border-radius: 6px; cursor: pointer; pointer-events: auto; }
-#vr-container { width: 100vw; height: 100vh; display: none; position: relative; z-index: 1; }
-#left-view { position: absolute; top: 0; left: 0; width: 50%; height: 100%; overflow: hidden; }
-#right-view { position: absolute; top: 0; right: 0; width: 50%; height: 100%; overflow: hidden; }
+  body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; user-select: none; }
+  #menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #111; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; color: #fff; text-align: center; padding: 20px; }
+  #menu h1 { font-size: 32px; margin-bottom: 10px; color: #4aa3df; }
+  #menu p { color: #aaa; max-width: 400px; margin-bottom: 30px; font-size: 16px; line-height: 1.4; }
+  .btn { padding: 16px 32px; font-size: 20px; background: #4aa3df; color: #fff; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 15px rgba(74, 163, 223, 0.4); }
+  .btn:active { background: #357abd; transform: scale(0.98); }
+  #fullscreenBtn { position: absolute; top: 20px; right: 20px; z-index: 2000; padding: 10px 18px; font-size: 14px; background: rgba(50,50,50,0.8); color: #fff; border: 1px solid #777; border-radius: 8px; cursor: pointer; }
+  #vr-container { width: 100vw; height: 100vh; display: none; position: relative; z-index: 10; }
+  #left-view { position: absolute; top: 0; left: 0; width: 50%; height: 100%; overflow: hidden; border-right: 2px solid #000; }
+  #right-view { position: absolute; top: 0; right: 0; width: 50%; height: 100%; overflow: hidden; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
-<button id="fullscreenBtn" type="button" onclick="toggleFullscreen()">На весь экран</button>
+<button id="fullscreenBtn" onclick="toggleFullscreen()">На весь экран</button>
 
 <div id="menu">
   <h1>VR Hub: Город</h1>
-  <p style="margin-bottom:20px; color:#aaa; max-width:400px;">Держите телефон ровно и нажмите старт.</p>
-  <button class="btn" type="button" onclick="startGame()">Начать VR игру</button>
+  <p>Положите телефон в Cardboard вертикально. Нажмите кнопку и держите ровно перед собой.</p>
+  <button class="btn" onclick="startGame()">Начать VR игру</button>
 </div>
 
 <div id="vr-container">
@@ -39,7 +41,7 @@ let playerPos = new THREE.Vector3(0, 1.7, 10);
 
 let targetQuaternion = new THREE.Quaternion();
 let currentQuaternion = new THREE.Quaternion();
-let baseOrientation = null;
+let baseEuler = null;
 
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
@@ -71,9 +73,9 @@ function startGame() {
 function handleOrientation(e) {
   if (e.alpha === null || e.beta === null || e.gamma === null) return;
 
-  // Convert angles, scale down beta/gamma sensitivity to fix excessive tilt
+  // Convert device orientation to radians
   const alpha = THREE.MathUtils.degToRad(e.alpha);
-  const beta = THREE.MathUtils.degToRad(e.beta - 45); // offset for natural holding angle
+  const beta = THREE.MathUtils.degToRad(e.beta);
   const gamma = THREE.MathUtils.degToRad(e.gamma);
 
   const zee = new THREE.Vector3(0, 0, 1);
@@ -81,78 +83,83 @@ function handleOrientation(e) {
   const q0 = new THREE.Quaternion();
   const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
 
+  // YXZ order works best for mobile VR head tracking in landscape
   euler.set(beta, alpha, -gamma, 'YXZ');
   let q = new THREE.Quaternion().setFromEuler(euler);
   q.multiply(q1);
   q.multiply(q0.setFromAxisAngle(zee, -window.orientation || 0));
 
-  if (!baseOrientation) {
-    baseOrientation = q.clone().invert();
+  if (!baseEuler) {
+    baseEuler = q.clone().invert();
   }
 
-  targetQuaternion.copy(baseOrientation).multiply(q);
+  targetQuaternion.copy(baseEuler).multiply(q);
 }
 
 function init3D() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87ceeb);
-  scene.fog = new THREE.FogExp2(0x87ceeb, 0.012);
+  scene.fog = new THREE.FogExp2(0x87ceeb, 0.015);
 
   const aspect = (window.innerWidth / 2) / window.innerHeight;
-  cameraL = new THREE.PerspectiveCamera(70, aspect, 0.1, 1000);
-  cameraR = new THREE.PerspectiveCamera(70, aspect, 0.1, 1000);
+  cameraL = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+  cameraR = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
 
   rendererL = new THREE.WebGLRenderer({ antialias: true });
   rendererL.setSize(window.innerWidth / 2, window.innerHeight);
-  rendererL.setPixelRatio(window.devicePixelRatio);
+  rendererL.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   document.getElementById('left-view').appendChild(rendererL.domElement);
 
   rendererR = new THREE.WebGLRenderer({ antialias: true });
   rendererR.setSize(window.innerWidth / 2, window.innerHeight);
-  rendererR.setPixelRatio(window.devicePixelRatio);
+  rendererR.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   document.getElementById('right-view').appendChild(rendererR.domElement);
 
+  // Lighting
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
   scene.add(ambientLight);
 
-  const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
-  dirLight.position.set(50, 200, 50);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  dirLight.position.set(100, 300, 100);
   scene.add(dirLight);
 
-  const floorGeo = new THREE.PlaneGeometry(600, 600);
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+  // Ground & Roads
+  const floorGeo = new THREE.PlaneGeometry(800, 800);
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI / 2;
   scene.add(floor);
 
-  const roadMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
-  for (let i = -250; i <= 250; i += 40) {
-    const roadX = new THREE.Mesh(new THREE.PlaneGeometry(12, 600), roadMat);
+  const roadMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+  for (let i = -300; i <= 300; i += 60) {
+    const roadX = new THREE.Mesh(new THREE.PlaneGeometry(16, 800), roadMat);
     roadX.rotation.x = -Math.PI / 2;
-    roadX.position.set(i, 0.01, 0);
+    roadX.position.set(i, 0.02, 0);
     scene.add(roadX);
 
-    const roadZ = new THREE.Mesh(new THREE.PlaneGeometry(600, 12), roadMat);
+    const roadZ = new THREE.Mesh(new THREE.PlaneGeometry(800, 16), roadMat);
     roadZ.rotation.x = -Math.PI / 2;
-    roadZ.position.set(0, 0.01, i);
+    roadZ.position.set(0, 0.02, i);
     scene.add(roadZ);
   }
 
+  // Spacious City Buildings
   const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-  const colors = [0x555555, 0x666677, 0x776666, 0x445566, 0x665544];
+  const colors = [0x555566, 0x666677, 0x776666, 0x445566, 0x665555];
 
-  for (let x = -240; x <= 240; x += 40) {
-    for (let z = -240; z <= 240; z += 40) {
-      if (Math.abs(x) < 20 && Math.abs(z) < 20) continue;
-      const offsets = [-10, 10];
+  for (let x = -280; x <= 280; x += 60) {
+    for (let z = -280; z <= 280; z += 60) {
+      if (Math.abs(x) < 30 && Math.abs(z) < 30) continue; // Center spawn clear
+
+      const offsets = [-16, 16];
       for (let ox of offsets) {
         for (let oz of offsets) {
           const bx = x + ox;
           const bz = z + oz;
-          const h = Math.random() * 50 + 15;
+          const h = Math.random() * 60 + 20;
           const mat = new THREE.MeshStandardMaterial({ color: colors[Math.floor(Math.random() * colors.length)] });
           const building = new THREE.Mesh(boxGeo, mat);
-          building.scale.set(16, h, 16);
+          building.scale.set(22, h, 22);
           building.position.set(bx, h / 2, bz);
           scene.add(building);
         }
@@ -194,7 +201,7 @@ function onKeyUp(e) {
 }
 
 function updateMovement() {
-  let speed = 0.2;
+  let speed = 0.25;
   let forwardDir = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
   forwardDir.y = 0;
   forwardDir.normalize();
@@ -210,8 +217,8 @@ function updateMovement() {
   moveVec.normalize();
 
   playerPos.addScaledVector(moveVec, speed);
-  playerPos.x = Math.max(-280, Math.min(280, playerPos.x));
-  playerPos.z = Math.max(-280, Math.min(280, playerPos.z));
+  playerPos.x = Math.max(-350, Math.min(350, playerPos.x));
+  playerPos.z = Math.max(-350, Math.min(350, playerPos.z));
 }
 
 function pollGamepad() {
@@ -230,7 +237,7 @@ function pollGamepad() {
         let moveVec = new THREE.Vector3();
         moveVec.addScaledVector(forwardDir, -ay);
         moveVec.addScaledVector(rightDir, ax);
-        playerPos.addScaledVector(moveVec, 0.2);
+        playerPos.addScaledVector(moveVec, 0.25);
       }
     }
   }
