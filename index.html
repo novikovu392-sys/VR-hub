@@ -3,29 +3,67 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>VR Hub - City</title>
+<title>VR Hub - Multiplayer</title>
 <style>
-  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #87ceeb; font-family: sans-serif; user-select: none; -webkit-user-select: none; }
-  #menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #111; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; color: #fff; text-align: center; padding: 20px; pointer-events: auto; }
-  #menu h1 { font-size: 30px; margin-bottom: 10px; color: #4aa3df; }
-  #menu p { color: #aaa; max-width: 380px; margin-bottom: 30px; font-size: 15px; line-height: 1.45; }
-  .btn { padding: 16px 34px; font-size: 20px; color: #fff; background: #4aa3df; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; display: inline-block; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0f1115; font-family: sans-serif; user-select: none; }
+  #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #111; color: #fff; text-align: center; padding: 20px; box-sizing: border-box; }
+  h1 { color: #4aa3df; font-size: 28px; margin-bottom: 10px; }
+  p { color: #aaa; font-size: 15px; max-width: 400px; line-height: 1.4; margin-bottom: 20px; }
+  .btn { padding: 14px 28px; font-size: 18px; font-weight: bold; background: #4aa3df; color: #fff; border: none; border-radius: 10px; cursor: pointer; margin: 8px; }
   .btn:active { background: #357abd; }
-  #fullscreenBtn { position: absolute; top: 16px; right: 16px; z-index: 2000; padding: 10px 18px; font-size: 14px; color: #fff; background: rgba(40,40,40,0.85); border: 1px solid #666; border-radius: 8px; cursor: pointer; }
+  .btn-sec { background: #333; border: 1px solid #555; }
+  input { padding: 14px; font-size: 20px; text-align: center; border-radius: 10px; border: 1px solid #555; background: #222; color: #fff; width: 200px; margin-bottom: 15px; letter-spacing: 4px; }
+  #pc-panel { display: none; width: 100%; height: 100%; background: #181c24; position: absolute; top: 0; left: 0; z-index: 900; padding: 30px; box-sizing: border-box; }
+  .top-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+  .game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+  .game-card { background: #222834; border: 1px solid #3a4454; border-radius: 12px; padding: 20px; text-align: left; }
+  .game-card h3 { margin: 0 0 10px 0; color: #4aa3df; }
   #vr-container { width: 100vw; height: 100vh; display: none; position: relative; z-index: 10; }
   #left-view { position: absolute; top: 0; left: 0; width: 50%; height: 100%; overflow: hidden; }
   #right-view { position: absolute; top: 0; right: 0; width: 50%; height: 100%; overflow: hidden; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 </head>
 <body>
 
-<button id="fullscreenBtn" onclick="toggleFullscreen()">На весь экран</button>
+<div id="ui-layer">
+  <div id="step-role">
+    <h1>VR Hub</h1>
+    <p>Выберите тип вашего устройства для подключения к хабу.</p>
+    <button class="btn" onclick="selectRole('pc')">Компьютер (ПК)</button><br>
+    <button class="btn btn-sec" onclick="selectRole('phone')">Телефон (VR Cardboard)</button>
+  </div>
 
-<div id="menu">
-  <h1>VR Hub: Город</h1>
-  <p>Вставьте телефон в Cardboard, нажмите кнопку и смотрите прямо.</p>
-  <button class="btn" onclick="startGame()">Начать VR игру</button>
+  <div id="step-phone-wait" style="display:none;">
+    <h1>Ожидание игры</h1>
+    <p>Введите код подключения с экрана ПК:</p>
+    <input type="text" id="joinCodeInput" maxlength="4" placeholder="0000"><br>
+    <button class="btn" onclick="joinSession()">Подключиться</button>
+    <p id="phone-status" style="margin-top:15px; color:#f1c40f;"></p>
+  </div>
+</div>
+
+<div id="pc-panel">
+  <div class="top-bar">
+    <div>
+      <h2 style="margin:0; color:#fff;">VR Hub — Панель управления</h2>
+      <p style="margin:5px 0 0 0; color:#4aa3df; font-size:16px;" id="pc-code-display">Код подключения: ----</p>
+    </div>
+    <div>
+      <button class="btn btn-sec" onclick="togglePCFullscreen()" id="pcFullscreenBtn">На весь экран</button>
+      <button class="btn btn-sec" onclick="exitGameFromPC()" id="pcExitBtn" style="display:none; background:#c0392b;">Выйти из игры</button>
+    </div>
+  </div>
+  <h3>Доступные игры</h3>
+  <div class="game-grid">
+    <div class="game-card">
+      <h3>Город VR</h3>
+      <p style="font-size:13px; color:#aaa;">Свободный полет и исследование мегаполиса в стереорежиме.</p>
+      <button class="btn" onclick="launchGame('city')">Запустить</button>
+    </div>
+  </div>
 </div>
 
 <div id="vr-container">
@@ -34,38 +72,134 @@
 </div>
 
 <script>
+const firebaseConfig = {
+  apiKey: "AIzaSyACNRV8N38hQ3qDe_dk-QLScYMxXyewVt8",
+  authDomain: "jdjdjd-5f261.firebaseapp.com",
+  databaseURL: "https://jdjdjd-5f261-default-rtdb.firebaseio.com",
+  projectId: "jdjdjd-5f261",
+  storageBucket: "jdjdjd-5f261.firebasestorage.app",
+  messagingSenderId: "985857299125",
+  appId: "1:985857299125:web:301368a741cf4f7716e4fc",
+  measurementId: "G-FF0NPGX4QW"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let sessionCode = null;
+let role = null;
+let sessionRef = null;
+
 let scene, cameraL, cameraR, rendererL, rendererR;
 let isPlaying = false;
-let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
 let playerPos = new THREE.Vector3(0, 1.7, 10);
-
 let targetQuaternion = new THREE.Quaternion();
 let currentQuaternion = new THREE.Quaternion();
 let baseQuaternion = null;
 
-function toggleFullscreen() {
+function selectRole(r) {
+  role = r;
+  if (role === 'pc') {
+    sessionCode = Math.floor(1000 + Math.random() * 9000).toString();
+    document.getElementById('pc-code-display').innerText = 'Код подключения: ' + sessionCode;
+    document.getElementById('ui-layer').style.display = 'none';
+    document.getElementById('pc-panel').style.display = 'block';
+
+    sessionRef = db.ref('sessions/' + sessionCode);
+    sessionRef.set({ status: 'menu', game: null });
+    sessionRef.on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
+      if (data.status === 'playing' && !isPlaying) {
+        startVRGameEngine();
+      } else if (data.status === 'menu' && isPlaying) {
+        stopVRGameEngine();
+      }
+    });
+  } else {
+    document.getElementById('step-role').style.display = 'none';
+    document.getElementById('step-phone-wait').style.display = 'block';
+  }
+}
+
+function joinSession() {
+  const code = document.getElementById('joinCodeInput').value.trim();
+  if (code.length !== 4) {
+    document.getElementById('phone-status').innerText = 'Введите 4 цифры кода!';
+    return;
+  }
+  sessionCode = code;
+  sessionRef = db.ref('sessions/' + sessionCode);
+  
+  sessionRef.once('value', (snapshot) => {
+    if (snapshot.exists()) {
+      document.getElementById('phone-status').innerText = 'Подключено! Ожидание запуска игры с ПК...';
+      document.getElementById('step-phone-wait').innerHTML = '<h1>Ожидание игры</h1><p>Устройство подключено. Запустите игру на ПК.</p>';
+      
+      sessionRef.on('value', (snap) => {
+        const val = snap.val();
+        if (val && val.status === 'playing' && !isPlaying) {
+          startVRGameEngine();
+        } else if (val && val.status === 'menu' && isPlaying) {
+          stopVRGameEngine();
+        }
+      });
+    } else {
+      document.getElementById('phone-status').innerText = 'Сессия не найдена!';
+    }
+  });
+}
+
+function launchGame(gameName) {
+  if (sessionRef) {
+    sessionRef.update({ status: 'playing', game: gameName });
+  }
+  document.getElementById('pcExitBtn').style.display = 'inline-block';
+}
+
+function exitGameFromPC() {
+  if (sessionRef) {
+    sessionRef.update({ status: 'menu', game: null });
+  }
+  document.getElementById('pcExitBtn').style.display = 'none';
+}
+
+function togglePCFullscreen() {
   if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().catch(function(){});
+    document.documentElement.requestFullscreen().catch(()=>{});
   } else {
     if (document.exitFullscreen) document.exitFullscreen();
   }
 }
 
-function startGame() {
-  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    DeviceOrientationEvent.requestPermission().then(function(response) {
-      if (response === 'granted') {
-        window.addEventListener('deviceorientation', handleOrientation, true);
-      }
-    }).catch(console.error);
-  } else {
-    window.addEventListener('deviceorientation', handleOrientation, true);
-  }
-
-  document.getElementById('menu').style.display = 'none';
+function startVRGameEngine() {
+  document.getElementById('ui-layer').style.display = 'none';
+  document.getElementById('pc-panel').style.display = 'none';
   document.getElementById('vr-container').style.display = 'block';
   isPlaying = true;
+
+  if (role === 'phone') {
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      DeviceOrientationEvent.requestPermission().then(resp => {
+        if (resp === 'granted') window.addEventListener('deviceorientation', handleOrientation, true);
+      }).catch(console.error);
+    } else {
+      window.addEventListener('deviceorientation', handleOrientation, true);
+    }
+  }
+
   init3D();
+}
+
+function stopVRGameEngine() {
+  isPlaying = false;
+  document.getElementById('vr-container').style.display = 'none';
+  if (role === 'pc') {
+    document.getElementById('pc-panel').style.display = 'block';
+  } else {
+    document.getElementById('step-phone-wait').style.display = 'block';
+    document.getElementById('step-phone-wait').innerHTML = '<h1>Ожидание игры</h1><p>Игра завершена на ПК.</p>';
+  }
 }
 
 function getScreenAngle() {
@@ -75,41 +209,29 @@ function getScreenAngle() {
   return window.orientation || 0;
 }
 
-// Canonical Cardboard/three.js device-orientation -> world quaternion
-function deviceQuaternion(alphaDeg, betaDeg, gammaDeg) {
-  var alpha = THREE.MathUtils.degToRad(alphaDeg);
-  var beta = THREE.MathUtils.degToRad(betaDeg);
-  var gamma = THREE.MathUtils.degToRad(gammaDeg);
+function handleOrientation(e) {
+  if (e.alpha === null || e.beta === null || e.gamma === null) return;
+  var alpha = THREE.MathUtils.degToRad(e.alpha);
+  var beta = THREE.MathUtils.degToRad(e.beta);
+  var gamma = THREE.MathUtils.degToRad(e.gamma);
 
   var zee = new THREE.Vector3(0, 0, 1);
   var euler = new THREE.Euler();
   var q0 = new THREE.Quaternion();
-  var q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // -90 deg around X
+  var q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
 
   euler.set(beta, alpha, -gamma, 'YXZ');
   var q = new THREE.Quaternion().setFromEuler(euler);
   q.multiply(q1);
   q.multiply(q0.setFromAxisAngle(zee, -getScreenAngle()));
 
-  return q;
-}
-
-function handleOrientation(e) {
-  if (e.alpha === null || e.beta === null || e.gamma === null) return;
-
-  var q = deviceQuaternion(e.alpha, e.beta, e.gamma);
-
   if (!baseQuaternion) {
     baseQuaternion = q.clone().invert();
   }
 
   targetQuaternion.copy(baseQuaternion).multiply(q);
-
-  // Strip roll so the horizon stays level no matter how you tilt the phone
-  var euler = new THREE.Euler().setFromQuaternion(targetQuaternion, 'YXZ');
-  var yaw = euler.y;
-  var pitch = euler.x;
-  targetQuaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
+  var eu = new THREE.Euler().setFromQuaternion(targetQuaternion, 'YXZ');
+  targetQuaternion.setFromEuler(new THREE.Euler(eu.x, eu.y, 0, 'YXZ'));
 }
 
 function init3D() {
@@ -123,21 +245,17 @@ function init3D() {
 
   var leftView = document.getElementById('left-view');
   var rightView = document.getElementById('right-view');
-  var halfW = leftView.clientWidth;
-  var fullH = leftView.clientHeight;
+  leftView.innerHTML = '';
+  rightView.innerHTML = '';
 
   rendererL = new THREE.WebGLRenderer({ antialias: true });
-  rendererL.setSize(halfW, fullH);
+  rendererL.setSize(leftView.clientWidth, leftView.clientHeight);
   rendererL.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  rendererL.domElement.style.width = '100%';
-  rendererL.domElement.style.height = '100%';
   leftView.appendChild(rendererL.domElement);
 
   rendererR = new THREE.WebGLRenderer({ antialias: true });
-  rendererR.setSize(halfW, fullH);
+  rendererR.setSize(rightView.clientWidth, rightView.clientHeight);
   rendererR.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  rendererR.domElement.style.width = '100%';
-  rendererR.domElement.style.height = '100%';
   rightView.appendChild(rendererR.domElement);
 
   var sun = new THREE.DirectionalLight(0xffffff, 1.0);
@@ -147,7 +265,6 @@ function init3D() {
   var ambient = new THREE.AmbientLight(0xffffff, 0.7);
   scene.add(ambient);
 
-  // Light ground so "looking down" never goes black
   var ground = new THREE.Mesh(
     new THREE.PlaneGeometry(1200, 1200),
     new THREE.MeshStandardMaterial({ color: 0x9aa3ab })
@@ -155,7 +272,6 @@ function init3D() {
   ground.rotation.x = -Math.PI / 2;
   scene.add(ground);
 
-  // Roads grid
   var roadMat = new THREE.MeshStandardMaterial({ color: 0x555b63 });
   for (var i = -400; i <= 400; i += 80) {
     var roadA = new THREE.Mesh(new THREE.PlaneGeometry(14, 1200), roadMat);
@@ -169,14 +285,12 @@ function init3D() {
     scene.add(roadB);
   }
 
-  // Buildings — dense, tall, colorful so every direction shows content
   var boxGeo = new THREE.BoxGeometry(1, 1, 1);
   var colors = [0x7d8590, 0x8a93a3, 0x9a8f86, 0x6f7d92, 0x86796f, 0x9aa0a8];
 
   for (var x = -380; x <= 380; x += 80) {
     for (var z = -380; z <= 380; z += 80) {
-      if (Math.abs(x) < 40 && Math.abs(z) < 40) continue; // spawn area clear
-
+      if (Math.abs(x) < 40 && Math.abs(z) < 40) continue;
       var spots = [[x-20,z-20],[x-20,z+20],[x+20,z-20],[x+20,z+20]];
       for (var s = 0; s < spots.length; s++) {
         var bx = spots[s][0];
@@ -192,83 +306,26 @@ function init3D() {
   }
 
   window.addEventListener('resize', onWindowResize);
-  document.addEventListener('keydown', onKeyDown);
-  document.addEventListener('keyup', onKeyUp);
-
   animate();
 }
 
 function onWindowResize() {
   if (!isPlaying) return;
   var leftView = document.getElementById('left-view');
-  var halfW = leftView.clientWidth;
-  var fullH = leftView.clientHeight;
-  rendererL.setSize(halfW, fullH);
-  rendererR.setSize(halfW, fullH);
-  cameraL.aspect = halfW / fullH;
+  var rightView = document.getElementById('right-view');
+  var w = leftView.clientWidth;
+  var h = leftView.clientHeight;
+  rendererL.setSize(w, h);
+  rendererR.setSize(w, h);
+  cameraL.aspect = w / h;
   cameraL.updateProjectionMatrix();
-  cameraR.aspect = halfW / fullH;
+  cameraR.aspect = w / h;
   cameraR.updateProjectionMatrix();
-}
-
-function onKeyDown(e) {
-  if (e.code === 'KeyW' || e.code === 'ArrowUp') moveForward = true;
-  if (e.code === 'KeyS' || e.code === 'ArrowDown') moveBackward = true;
-  if (e.code === 'KeyA' || e.code === 'ArrowLeft') moveLeft = true;
-  if (e.code === 'KeyD' || e.code === 'ArrowRight') moveRight = true;
-}
-
-function onKeyUp(e) {
-  if (e.code === 'KeyW' || e.code === 'ArrowUp') moveForward = false;
-  if (e.code === 'KeyS' || e.code === 'ArrowDown') moveBackward = false;
-  if (e.code === 'KeyA' || e.code === 'ArrowLeft') moveLeft = false;
-  if (e.code === 'KeyD' || e.code === 'ArrowRight') moveRight = false;
-}
-
-function updateMovement() {
-  var speed = 0.25;
-  var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
-  forward.y = 0; forward.normalize();
-  var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
-  right.y = 0; right.normalize();
-
-  var mv = new THREE.Vector3();
-  if (moveForward) mv.add(forward);
-  if (moveBackward) mv.sub(forward);
-  if (moveLeft) mv.sub(right);
-  if (moveRight) mv.add(right);
-  if (mv.lengthSq() > 0) mv.normalize();
-
-  playerPos.addScaledVector(mv, speed);
-  playerPos.x = Math.max(-440, Math.min(440, playerPos.x));
-  playerPos.z = Math.max(-440, Math.min(440, playerPos.z));
-}
-
-function pollGamepad() {
-  var gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-  for (var i = 0; i < gamepads.length; i++) {
-    var gp = gamepads[i];
-    if (gp) {
-      var ax = gp.axes[0];
-      var ay = gp.axes[1];
-      if (Math.abs(ax) > 0.1 || Math.abs(ay) > 0.1) {
-        var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
-        forward.y = 0; forward.normalize();
-        var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
-        right.y = 0; right.normalize();
-        playerPos.addScaledVector(forward, -ay * 0.25);
-        playerPos.addScaledVector(right, ax * 0.25);
-      }
-    }
-  }
 }
 
 function animate() {
   if (!isPlaying) return;
   requestAnimationFrame(animate);
-
-  updateMovement();
-  pollGamepad();
 
   currentQuaternion.slerp(targetQuaternion, 0.25);
 
