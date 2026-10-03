@@ -815,11 +815,15 @@ function buildZombieEnvironment(sceneTarget) {
 
   zombies = [];
   bullets = [];
-  for (var i = 0; i < 18; i++) {
+  for (var i = 0; i < 12; i++) {
+    var angle = (i / 12) * Math.PI * 2;
+    var dist = 45 + Math.random() * 25;
+    var zx = Math.cos(angle) * dist;
+    var zz = Math.sin(angle) * dist;
     var z = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x336633 }));
-    z.position.set((Math.random() - 0.5) * 120, 1.1, (Math.random() - 0.5) * 120);
+    z.position.set(zx, 1.1, zz);
     sceneTarget.add(z);
-    zombies.push({ mesh: z, hp: 3, speed: 0.8 + Math.random() * 0.6 });
+    zombies.push({ mesh: z, hp: 3, speed: 0.35 + Math.random() * 0.25, homeX: zx, homeZ: zz });
   }
 }
 
@@ -843,12 +847,16 @@ function updateZombies(dt) {
     var toPlayer = playerPos.clone().sub(z.mesh.position);
     toPlayer.y = 0;
     var dist = toPlayer.length();
-    if (dist > 0.8) {
+    var chaseDist = 55;
+    if (dist < chaseDist && dist > 1.2) {
       toPlayer.normalize().multiplyScalar(z.speed * dt * 60);
       z.mesh.position.add(toPlayer);
     }
     if (dist < 2.2) {
-      // damage player later if needed
+      // damage later
+    }
+    if (sessionRef && role === 'pc' && pcStreamActive) {
+      sessionRef.child('zombies/' + i).update({ x: z.mesh.position.x, z: z.mesh.position.z });
     }
   }
 }
