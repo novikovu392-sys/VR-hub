@@ -108,6 +108,11 @@
 <div id="vr-container">
   <div id="left-view"><div class="vr-hud" id="left-hud"></div></div>
   <div id="right-view"><div class="vr-hud" id="right-hud"></div></div>
+  <div id="fs-prompt" style="display:none; position:absolute; top:0; left:0; right:0; bottom:0; z-index:300; background:rgba(0,0,0,0.75); align-items:center; justify-content:center; flex-direction:column;">
+    <p style="color:#f1c40f; margin-bottom:16px;">Полный экран на телефоне</p>
+    <button class="btn" onclick="phoneGoFullscreen()">Полный экран</button>
+    <button class="btn btn-sec" onclick="hidePhoneFullscreenPrompt()" style="margin-top:8px;">Отмена</button>
+  </div>
 </div>
 
 <script>
@@ -253,9 +258,10 @@ function joinSession() {
           stopVRGameEngine();
         }
 
-        // PC asked the phone to go fullscreen
+        // PC asked the phone to go fullscreen -> show prompt (needs user tap)
         if (val.fullscreenPhone) {
-          requestFullscreenOnDevice();
+          showPhoneFullscreenPrompt();
+          // Reset flag so the PC button can be pressed again
           sessionRef.update({ fullscreenPhone: false });
         }
 
@@ -310,15 +316,26 @@ function exitGameFromPC() {
 
 function toggleFullscreenPhone() {
   // Activate fullscreen on the PHONE device (the VR headset screen).
-  // The PC writes a flag; the phone picks it up from the DB and goes fullscreen.
+  // The PC writes a flag; the phone picks it up from the DB and shows a prompt.
+  // The phone user must tap the button (browsers require a user gesture).
   if (sessionRef) {
     sessionRef.update({ fullscreenPhone: true });
   }
 }
 
-function toggleFullscreenCurrent() {
-  // Activate fullscreen on the CURRENT device (the PC running this panel).
+function phoneGoFullscreen() {
   requestFullscreenOnDevice();
+  hidePhoneFullscreenPrompt();
+}
+
+function hidePhoneFullscreenPrompt() {
+  var p = document.getElementById('fs-prompt');
+  if (p) p.style.display = 'none';
+}
+
+function showPhoneFullscreenPrompt() {
+  var p = document.getElementById('fs-prompt');
+  if (p) p.style.display = 'flex';
 }
 
 function requestFullscreenOnDevice() {
