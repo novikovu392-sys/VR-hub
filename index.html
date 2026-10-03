@@ -989,6 +989,22 @@ function getRightStick() {
   return false;
 }
 
+function checkShootButton() {
+  if (currentActiveGame !== 'zombie') return;
+  var pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (var i = 0; i < pads.length; i++) {
+    var gp = pads[i];
+    if (gp && gp.connected) {
+      var square = gp.buttons[2] ? gp.buttons[2].pressed : false;
+      if (square && Date.now() - lastShotTime > 180) {
+        shoot();
+        lastShotTime = Date.now();
+      }
+      break;
+    }
+  }
+}
+
 // Right stick = one action per press:
 //  - city/trials: jump
 //  - space: toggle gravity on/off
@@ -1084,8 +1100,15 @@ function initPCStreamScene() {
     buildCityQuestEnvironment(pcScene);
   } else if (currentActiveGame === 'roofrun') {
     buildRoofRunEnvironment(pcScene);
+  } else if (currentActiveGame === 'zombie') {
+    buildZombieEnvironment(pcScene);
   } else {
     buildCityEnvironment(pcScene);
+  }
+  if (currentActiveGame === 'zombie') {
+    zombies = [];
+    bullets = [];
+    lastShotTime = 0;
   }
 
   const w = container.clientWidth || window.innerWidth;
