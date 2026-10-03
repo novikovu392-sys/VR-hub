@@ -823,7 +823,7 @@ function buildZombieEnvironment(sceneTarget) {
     var z = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x336633 }));
     z.position.set(zx, 1.1, zz);
     sceneTarget.add(z);
-    zombies.push({ mesh: z, hp: 3, speed: 0.35 + Math.random() * 0.25, homeX: zx, homeZ: zz });
+    zombies.push({ mesh: z, hp: 3, speed: 0.22 + Math.random() * 0.12, homeX: zx, homeZ: zz });
   }
 }
 
