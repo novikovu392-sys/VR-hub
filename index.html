@@ -1173,6 +1173,8 @@ function initPCStreamScene() {
     buildRoofRunEnvironment(pcScene);
   } else if (currentActiveGame === 'zombie') {
     buildZombieEnvironment(pcScene);
+  } else if (currentActiveGame === 'run') {
+    buildRunEnvironment(pcScene);
   } else {
     buildCityEnvironment(pcScene);
   }
@@ -1276,7 +1278,7 @@ function animatePC() {
   handleRightStick();
   updatePhysics(0.016);
 
-  if (pcStreamActive) {
+  if (pcStreamActive || currentActiveGame === 'run') {
     pcCamera.position.copy(playerPos);
     pcCamera.quaternion.copy(currentQuaternion);
   } else {
