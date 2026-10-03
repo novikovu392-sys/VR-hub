@@ -823,7 +823,7 @@ function buildZombieEnvironment(sceneTarget) {
     var z = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x336633 }));
     z.position.set(zx, 1.1, zz);
     sceneTarget.add(z);
-    zombies.push({ mesh: z, hp: 3, speed: 0.22 + Math.random() * 0.12, homeX: zx, homeZ: zz });
+    zombies.push({ mesh: z, hp: 3, speed: 0.18 + Math.random() * 0.09, homeX: zx, homeZ: zz });
   }
 }
 
@@ -833,7 +833,7 @@ function shoot() {
   dir.y = 0;
   dir.normalize();
   var b = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffff88 }));
-  b.position.copy(playerPos).add(new THREE.Vector3(0, 1.6, 0));
+  b.position.copy(playerPos).add(new THREE.Vector3(0, 1.35, 0));
   b.userData = { dir: dir, life: 90 };
   var tgt = (role === 'pc' && pcScene) ? pcScene : scene;
   tgt.add(b);
@@ -879,7 +879,17 @@ function updateBullets(dt) {
         bullets.splice(i, 1);
         if (z.hp <= 0) {
           scene.remove(z.mesh);
-          zombies.splice(j, 1);
+          // respawn
+          var angle = Math.random() * Math.PI * 2;
+          var dist = 45 + Math.random() * 25;
+          var nx = Math.cos(angle) * dist;
+          var nz = Math.sin(angle) * dist;
+          z.mesh.position.set(nx, 1.1, nz);
+          z.hp = 3;
+          z.homeX = nx;
+          z.homeZ = nz;
+          sceneTarget.add(z.mesh);
+          zombies.push(z);
         }
         break;
       }
