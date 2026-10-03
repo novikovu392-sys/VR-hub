@@ -51,6 +51,7 @@
     <p>Введите 4-значный код с экрана ПК:</p>
     <input type="text" id="joinCodeInput" maxlength="4" placeholder="0000"><br>
     <button class="btn" onclick="joinSession()">Подключиться</button>
+    <button class="btn btn-sec" onclick="phoneGoFullscreen()" id="phoneFsBtn">Полный экран</button>
     <p id="phone-status" style="margin-top:15px; color:#f1c40f;"></p>
   </div>
 </div>
@@ -62,7 +63,6 @@
       <p style="margin:5px 0 0 0; color:#f1c40f; font-size:16px;" id="pc-code-display">Код: ----</p>
     </div>
     <div class="right">
-      <button class="btn btn-sec" onclick="toggleFullscreenPhone()">Полный экран (телефон)</button>
       <button class="btn btn-sec" onclick="toggleFullscreenCurrent()">Полный экран (ПК)</button>
       <button class="btn btn-danger" onclick="exitGameFromPC()" id="pcExitBtn">Выйти из игры</button>
     </div>
@@ -241,7 +241,7 @@ function joinSession() {
   sessionRef.once('value', (snapshot) => {
     if (snapshot.exists()) {
       document.getElementById('phone-status').innerText = 'Подключено! Ожидание запуска...';
-      document.getElementById('step-phone-wait').innerHTML = '<h1>Ожидание игры</h1><p>Устройство подключено. Запустите игру на ПК.</p>';
+      document.getElementById('step-phone-wait').innerHTML = '<h1>Ожидание игры</h1><p>Устройство подключено. Запустите игру на ПК.</p><br><button class="btn btn-sec" onclick="phoneGoFullscreen()">Полный экран</button>';
 
       sessionRef.on('value', (snap) => {
         const val = snap.val();
@@ -1137,7 +1137,7 @@ function stopVRGameEngine() {
   document.getElementById('ui-layer').style.display = 'flex';
   document.getElementById('step-role').style.display = 'none';
   document.getElementById('step-phone-wait').style.display = 'block';
-  document.getElementById('step-phone-wait').innerHTML = '<h1>Ожидание игры</h1><p>Игра завершена на ПК. Выберите другую игру.</p>';
+  document.getElementById('step-phone-wait').innerHTML = '<h1>Ожидание игры</h1><p>Игра завершена на ПК. Выберите другую игру.</p><br><button class="btn btn-sec" onclick="phoneGoFullscreen()">Полный экран</button>';
 }
 
 function initVR3D() {
