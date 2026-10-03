@@ -62,6 +62,8 @@
       <p style="margin:5px 0 0 0; color:#f1c40f; font-size:16px;" id="pc-code-display">Код: ----</p>
     </div>
     <div class="right">
+      <button class="btn btn-sec" onclick="toggleFullscreenPhone()">Полный экран (телефон)</button>
+      <button class="btn btn-sec" onclick="toggleFullscreenCurrent()">Полный экран (ПК)</button>
       <button class="btn btn-danger" onclick="exitGameFromPC()" id="pcExitBtn">Выйти из игры</button>
     </div>
   </div>
@@ -251,6 +253,12 @@ function joinSession() {
           stopVRGameEngine();
         }
 
+        // PC asked the phone to go fullscreen
+        if (val.fullscreenPhone) {
+          requestFullscreenOnDevice();
+          sessionRef.update({ fullscreenPhone: false });
+        }
+
         // Sync position + orientation from PC (skip our own echo)
         if (isPlaying && val.pos && !posSameAsWritten(val.pos.x, val.pos.y, val.pos.z)) {
           playerPos.set(val.pos.x, val.pos.y, val.pos.z);
@@ -297,6 +305,34 @@ function exitGameFromPC() {
   pcGameActive = false;
   if (sessionRef) {
     sessionRef.update({ status: 'menu', game: null });
+  }
+}
+
+function toggleFullscreenPhone() {
+  // Activate fullscreen on the PHONE device (the VR headset screen).
+  // The PC writes a flag; the phone picks it up from the DB and goes fullscreen.
+  if (sessionRef) {
+    sessionRef.update({ fullscreenPhone: true });
+  }
+}
+
+function toggleFullscreenCurrent() {
+  // Activate fullscreen on the CURRENT device (the PC running this panel).
+  requestFullscreenOnDevice();
+}
+
+function requestFullscreenOnDevice() {
+  var el = document.documentElement;
+  if (!document.fullscreenElement) {
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    else if (el.mozRequestFullScreen) el.mozRequestFullScreen();
+    else if (el.msRequestFullscreen) el.msRequestFullscreen();
+  } else {
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
+    else if (document.msExitFullscreen) document.msExitFullscreen();
   }
 }
 
@@ -757,6 +793,29 @@ function checkRoofRunProgress() {
   }
 }
 
+// Solid side hitboxes for roof buildings: block horizontal movement
+// into the building volume when you are below the roof top.
+function applyRoofCollision() {
+  var R = 0.7;
+  for (var i = 0; i < roofGroup.length; i++) {
+    var r = roofGroup[i];
+    // Only block if the player's feet are below the top of this roof
+    if (playerPos.y >= r.top - 0.4) continue;
+    var minX = r.x - r.w / 2 - R, maxX = r.x + r.w / 2 + R;
+    var minZ = r.z - r.d / 2 - R, maxZ = r.z + r.d / 2 + R;
+    if (playerPos.x > minX && playerPos.x < maxX && playerPos.z > minZ && playerPos.z < maxZ) {
+      // Push out along the axis of least penetration
+      var pushX = Math.min(playerPos.x - minX, maxX - playerPos.x);
+      var pushZ = Math.min(playerPos.z - minZ, maxZ - playerPos.z);
+      if (pushX < pushZ) {
+        playerPos.x = (playerPos.x - minX < maxX - playerPos.x) ? minX : maxX;
+      } else {
+        playerPos.z = (playerPos.z - minZ < maxZ - playerPos.z) ? minZ : maxZ;
+      }
+    }
+  }
+}
+
 function updateHUD() {
   if (currentActiveGame === 'underwater' || currentActiveGame === 'cityquest' || currentActiveGame === 'roofrun') {
     if (!trialCompleted) {
@@ -874,6 +933,8 @@ function updatePhysics(dt) {
       playerVelY = 0;
       isGrounded = true;
     }
+    // Solid hitboxes: block walking/jumping into building sides
+    applyRoofCollision();
   } else if (currentActiveGame === 'trials' || currentActiveGame === 'city' || currentActiveGame === 'cityquest') {
     if (!isGrounded) {
       playerVelY -= 22 * dt;
