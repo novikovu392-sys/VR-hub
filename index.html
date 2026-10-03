@@ -160,6 +160,15 @@ let spaceGravity = false;
 let rightStickPrev = false;
 let roofGroup = [];
 let lastRoofIndex = -1;
+let zombies = [];
+let bullets = [];
+let lastShotTime = 0;
+let zombies = [];
+let bullets = [];
+let lastShotTime = 0;
+let zombies = [];
+let bullets = [];
+let lastShotTime = 0;
 
 function posSameAsWritten(x, y, z, eps) {
   if (eps === undefined) eps = 0.05;
@@ -793,6 +802,83 @@ function setHudText(text) {
   if (ph) ph.innerText = text;
 }
 
+function buildZombieEnvironment(sceneTarget) {
+  sceneTarget.background = new THREE.Color(0x112211);
+  sceneTarget.fog = new THREE.Fog(0x112211, 40, 180);
+  sceneTarget.add(new THREE.AmbientLight(0x334433, 0.6));
+  var light = new THREE.DirectionalLight(0x88ff88, 0.9);
+  light.position.set(30, 80, 20);
+  sceneTarget.add(light);
+
+  var ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.MeshStandardMaterial({ color: 0x224422 }));
+  ground.rotation.x = -Math.PI / 2;
+  sceneTarget.add(ground);
+
+  zombies = [];
+  bullets = [];
+  for (var i = 0; i < 18; i++) {
+    var z = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x336633 }));
+    z.position.set((Math.random() - 0.5) * 120, 1.1, (Math.random() - 0.5) * 120);
+    sceneTarget.add(z);
+    zombies.push({ mesh: z, hp: 3, speed: 0.8 + Math.random() * 0.6 });
+  }
+}
+
+function shoot() {
+  if (!playerPos || !currentQuaternion) return;
+  var dir = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+  dir.y = 0;
+  dir.normalize();
+  var b = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffff88 }));
+  b.position.copy(playerPos).add(new THREE.Vector3(0, 1.6, 0));
+  b.userData = { dir: dir, life: 90 };
+  scene.add(b);
+  bullets.push(b);
+}
+
+function updateZombies(dt) {
+  for (var i = zombies.length - 1; i >= 0; i--) {
+    var z = zombies[i];
+    if (!z.mesh) continue;
+    var toPlayer = playerPos.clone().sub(z.mesh.position);
+    toPlayer.y = 0;
+    var dist = toPlayer.length();
+    if (dist > 0.8) {
+      toPlayer.normalize().multiplyScalar(z.speed * dt * 60);
+      z.mesh.position.add(toPlayer);
+    }
+    if (dist < 2.2) {
+      // damage player later if needed
+    }
+  }
+}
+
+function updateBullets(dt) {
+  for (var i = bullets.length - 1; i >= 0; i--) {
+    var b = bullets[i];
+    b.position.add(b.userData.dir.clone().multiplyScalar(1.8));
+    b.userData.life--;
+    if (b.userData.life <= 0) {
+      scene.remove(b);
+      bullets.splice(i, 1);
+      continue;
+    }
+    for (var j = zombies.length - 1; j >= 0; j--) {
+      var z = zombies[j];
+      if (b.position.distanceTo(z.mesh.position) < 1.8) {
+        z.hp--;
+        scene.remove(b);
+        bullets.splice(i, 1);
+        if (z.hp <= 0) {
+          scene.remove(z.mesh);
+          zombies.splice(j, 1);
+        }
+        break;
+      }
+    }
+  }
+}
+
 function checkRoofRunProgress() {
   if (trialCompleted) return;
   var onRoof = -1;
@@ -1107,6 +1193,10 @@ function animatePC() {
   }
 
   updateWorld(0.016);
+  if (currentActiveGame === 'zombie') {
+    updateZombies(0.016);
+    updateBullets(0.016);
+  }
   updateHUD();
 
   pcRenderer.render(pcScene, pcCamera);
@@ -1152,6 +1242,8 @@ function initVR3D() {
     buildCityQuestEnvironment(scene);
   } else if (currentActiveGame === 'roofrun') {
     buildRoofRunEnvironment(scene);
+  } else if (currentActiveGame === 'zombie') {
+    buildZombieEnvironment(scene);
   } else {
     buildCityEnvironment(scene);
   }
