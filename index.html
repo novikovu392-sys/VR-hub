@@ -173,6 +173,9 @@ let lastRoofIndex = -1;
 let zombies = [];
 let bullets = [];
 let lastShotTime = 0;
+let runSegments = [];
+let runSpeed = 22;
+let runOffsetX = 0;
 
 function posSameAsWritten(x, y, z, eps) {
   if (eps === undefined) eps = 0.05;
@@ -308,6 +311,11 @@ function launchGame(gameName) {
   } else if (gameName === 'roofrun') {
     playerPos.set(0, 6, 20);
     isGrounded = true;
+  } else if (gameName === 'run') {
+    playerPos.set(0, 1.7, 180);
+    isGrounded = true;
+    runSpeed = 22;
+    runOffsetX = 0;
   }
   if (role === 'pc') {
     pcGameActive = true;
@@ -797,6 +805,40 @@ function buildRoofRunEnvironment(sceneTarget) {
   isGrounded = true;
 }
 
+function buildRunEnvironment(sceneTarget) {
+  sceneTarget.background = new THREE.Color(0x0a0a14);
+  sceneTarget.fog = new THREE.Fog(0x0a0a14, 60, 400);
+  sceneTarget.add(new THREE.AmbientLight(0xffffff, 0.7));
+  var sun = new THREE.DirectionalLight(0xffffff, 0.9);
+  sun.position.set(50, 200, 80);
+  sceneTarget.add(sun);
+
+  var ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 800), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+  ground.rotation.x = -Math.PI / 2;
+  sceneTarget.add(ground);
+
+  // initial road segments
+  runSegments = [];
+  for (var i = 0; i < 12; i++) {
+    var seg = new THREE.Mesh(
+      new THREE.PlaneGeometry(12, 70),
+      new THREE.MeshStandardMaterial({ color: 0x333333 })
+    );
+    seg.rotation.x = -Math.PI / 2;
+    seg.position.set(0, 0.02, -i * 65 + 200);
+    sceneTarget.add(seg);
+    runSegments.push(seg);
+  }
+
+  targetQuaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'YXZ'));
+  currentQuaternion.copy(targetQuaternion);
+  playerPos.set(0, 1.7, 180);
+  playerVelY = 0;
+  isGrounded = true;
+  runSpeed = 22;
+  runOffsetX = 0;
+}
+
 function setHudText(text) {
   var lh = document.getElementById('left-hud');
   var rh = document.getElementById('right-hud');
@@ -1247,6 +1289,8 @@ function animatePC() {
   if (currentActiveGame === 'zombie') {
     updateZombies(0.016);
     updateBullets(0.016);
+  } else if (currentActiveGame === 'run') {
+    updateRun(0.016);
   }
   updateHUD();
 
@@ -1395,4 +1439,4 @@ function animateVR() {
 }
 </script>
 </body>
-</html>o
+</html>
