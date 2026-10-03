@@ -102,11 +102,6 @@
       </div>
       <div class="game-card">
         <h3>Зомби выживание</h3>
-      </div>
-      <div class="game-card">
-        <h3>Беги</h3>
-        <p>Бесконечная дорога зигзаг. Левый стик — поворот.</p>
-        <button class="btn" onclick="launchGame('run')">Запустить</button>
         <p>Отбивайся от зомби, правый стик — стрельба.</p>
         <button class="btn" onclick="launchGame('zombie')">Запустить</button>
       </div>
@@ -295,9 +290,6 @@ function joinSession() {
 function launchGame(gameName) {
   currentActiveGame = gameName;
   trialCurrentIndex = 0;
-  if (gameName === 'run') {
-    buildRunEnvironment(scene);
-  }
   trialCompleted = false;
   lastRoofIndex = -1;
   playerPos.set(0, 1.7, 10);
@@ -809,19 +801,6 @@ function setHudText(text) {
   if (ph) ph.innerText = text;
 }
 
-function buildRunEnvironment(sceneTarget) {
-  sceneTarget.background = new THREE.Color(0x112211);
-  sceneTarget.fog = new THREE.Fog(0x112211, 80, 220);
-  // simple infinite road setup
-  var road = new THREE.Mesh(new THREE.PlaneGeometry(12, 800), new THREE.MeshStandardMaterial({ color: 0x222222 }));
-  road.rotation.x = -Math.PI / 2;
-  road.position.z = -200;
-  sceneTarget.add(road);
-  runRoad = road;
-  runSpeed = 28;
-  runOffset = 0;
-}
-
 function buildZombieEnvironment(sceneTarget) {
   sceneTarget.background = new THREE.Color(0x112211);
   sceneTarget.fog = new THREE.Fog(0x112211, 40, 180);
@@ -836,15 +815,11 @@ function buildZombieEnvironment(sceneTarget) {
 
   zombies = [];
   bullets = [];
-  for (var i = 0; i < 10; i++) {
-    var spread = (Math.random() - 0.5) * 1.2;
-    var dist = 32 + Math.random() * 22;
-    var zx = Math.sin(spread) * dist;
-    var zz = -dist * 0.9;
+  for (var i = 0; i < 18; i++) {
     var z = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x336633 }));
-    z.position.set(zx, 1.1, zz);
+    z.position.set((Math.random() - 0.5) * 120, 1.1, (Math.random() - 0.5) * 120);
     sceneTarget.add(z);
-    zombies.push({ mesh: z, hp: 3, speed: 0.12 + Math.random() * 0.06, homeX: zx, homeZ: zz });
+    zombies.push({ mesh: z, hp: 3, speed: 0.8 + Math.random() * 0.6 });
   }
 }
 
@@ -854,7 +829,7 @@ function shoot() {
   dir.y = 0;
   dir.normalize();
   var b = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffff88 }));
-  b.position.copy(playerPos).add(new THREE.Vector3(0, 1.0, 0));
+  b.position.copy(playerPos).add(new THREE.Vector3(0, 1.6, 0));
   b.userData = { dir: dir, life: 90 };
   var tgt = (role === 'pc' && pcScene) ? pcScene : scene;
   tgt.add(b);
@@ -868,16 +843,12 @@ function updateZombies(dt) {
     var toPlayer = playerPos.clone().sub(z.mesh.position);
     toPlayer.y = 0;
     var dist = toPlayer.length();
-    var chaseDist = 55;
-    if (dist < chaseDist && dist > 1.2) {
+    if (dist > 0.8) {
       toPlayer.normalize().multiplyScalar(z.speed * dt * 60);
       z.mesh.position.add(toPlayer);
     }
     if (dist < 2.2) {
-      // damage later
-    }
-    if (sessionRef && role === 'pc' && pcStreamActive) {
-      sessionRef.child('zombies/' + i).update({ x: z.mesh.position.x, z: z.mesh.position.z });
+      // damage player later if needed
     }
   }
 }
@@ -900,17 +871,7 @@ function updateBullets(dt) {
         bullets.splice(i, 1);
         if (z.hp <= 0) {
           scene.remove(z.mesh);
-          // respawn
-          var angle = Math.random() * Math.PI * 2;
-          var dist = 45 + Math.random() * 25;
-          var nx = Math.cos(angle) * dist;
-          var nz = Math.sin(angle) * dist;
-          z.mesh.position.set(nx, 1.1, nz);
-          z.hp = 3;
-          z.homeX = nx;
-          z.homeZ = nz;
-          sceneTarget.add(z.mesh);
-          zombies.push(z);
+          zombies.splice(j, 1);
         }
         break;
       }
@@ -1061,7 +1022,7 @@ function handleRightStick() {
       spaceGravity = !spaceGravity;
       setHudText(spaceGravity ? 'Гравитация: ВКЛ' : 'Гравитация: ВЫКЛ');
       setTimeout(function() { updateHUD(); }, 1500);
-    } else if (currentActiveGame !== 'underwater' && currentActiveGame !== 'run') {
+    } else if (currentActiveGame !== 'underwater') {
       if (isGrounded) {
         playerVelY = (currentActiveGame === 'roofrun') ? 14 : 9;
         isGrounded = false;
