@@ -815,15 +815,15 @@ function buildZombieEnvironment(sceneTarget) {
 
   zombies = [];
   bullets = [];
-  for (var i = 0; i < 12; i++) {
-    var angle = (i / 12) * Math.PI * 2;
-    var dist = 45 + Math.random() * 25;
-    var zx = Math.cos(angle) * dist;
-    var zz = Math.sin(angle) * dist;
+  for (var i = 0; i < 10; i++) {
+    var spread = (Math.random() - 0.5) * 1.2;
+    var dist = 32 + Math.random() * 22;
+    var zx = Math.sin(spread) * dist;
+    var zz = -dist * 0.9;
     var z = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x336633 }));
     z.position.set(zx, 1.1, zz);
     sceneTarget.add(z);
-    zombies.push({ mesh: z, hp: 3, speed: 0.18 + Math.random() * 0.09, homeX: zx, homeZ: zz });
+    zombies.push({ mesh: z, hp: 3, speed: 0.12 + Math.random() * 0.06, homeX: zx, homeZ: zz });
   }
 }
 
