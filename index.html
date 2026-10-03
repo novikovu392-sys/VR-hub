@@ -102,6 +102,11 @@
       </div>
       <div class="game-card">
         <h3>Зомби выживание</h3>
+      </div>
+      <div class="game-card">
+        <h3>Беги</h3>
+        <p>Бесконечная дорога зигзаг. Левый стик — поворот.</p>
+        <button class="btn" onclick="launchGame('run')">Запустить</button>
         <p>Отбивайся от зомби, правый стик — стрельба.</p>
         <button class="btn" onclick="launchGame('zombie')">Запустить</button>
       </div>
@@ -290,6 +295,9 @@ function joinSession() {
 function launchGame(gameName) {
   currentActiveGame = gameName;
   trialCurrentIndex = 0;
+  if (gameName === 'run') {
+    buildRunEnvironment(scene);
+  }
   trialCompleted = false;
   lastRoofIndex = -1;
   playerPos.set(0, 1.7, 10);
@@ -801,6 +809,19 @@ function setHudText(text) {
   if (ph) ph.innerText = text;
 }
 
+function buildRunEnvironment(sceneTarget) {
+  sceneTarget.background = new THREE.Color(0x112211);
+  sceneTarget.fog = new THREE.Fog(0x112211, 80, 220);
+  // simple infinite road setup
+  var road = new THREE.Mesh(new THREE.PlaneGeometry(12, 800), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+  road.rotation.x = -Math.PI / 2;
+  road.position.z = -200;
+  sceneTarget.add(road);
+  runRoad = road;
+  runSpeed = 28;
+  runOffset = 0;
+}
+
 function buildZombieEnvironment(sceneTarget) {
   sceneTarget.background = new THREE.Color(0x112211);
   sceneTarget.fog = new THREE.Fog(0x112211, 40, 180);
@@ -833,7 +854,7 @@ function shoot() {
   dir.y = 0;
   dir.normalize();
   var b = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffff88 }));
-  b.position.copy(playerPos).add(new THREE.Vector3(0, 1.35, 0));
+  b.position.copy(playerPos).add(new THREE.Vector3(0, 1.0, 0));
   b.userData = { dir: dir, life: 90 };
   var tgt = (role === 'pc' && pcScene) ? pcScene : scene;
   tgt.add(b);
@@ -1040,7 +1061,7 @@ function handleRightStick() {
       spaceGravity = !spaceGravity;
       setHudText(spaceGravity ? 'Гравитация: ВКЛ' : 'Гравитация: ВЫКЛ');
       setTimeout(function() { updateHUD(); }, 1500);
-    } else if (currentActiveGame !== 'underwater') {
+    } else if (currentActiveGame !== 'underwater' && currentActiveGame !== 'run') {
       if (isGrounded) {
         playerVelY = (currentActiveGame === 'roofrun') ? 14 : 9;
         isGrounded = false;
