@@ -29,6 +29,8 @@
   #vr-container { width: 100vw; height: 100vh; display: none; position: relative; z-index: 10; }
   #left-view { position: absolute; top: 0; left: 0; width: 50%; height: 100%; overflow: hidden; }
   #right-view { position: absolute; top: 0; right: 0; width: 50%; height: 100%; overflow: hidden; }
+  .vr-hud { position: absolute; top: 8%; left: 0; right: 0; text-align: center; pointer-events: none; color: #fff; font-size: 20px; font-weight: bold; text-shadow: 1px 1px 4px #000, 0 0 6px #000; z-index: 50; }
+  #pc-hud { position: absolute; top: 16px; left: 0; right: 0; text-align: center; pointer-events: none; color: #fff; font-size: 22px; font-weight: bold; text-shadow: 1px 1px 4px #000; z-index: 50; }
   </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -76,14 +78,29 @@
         <p>Лабиринт с чекпоинтами. Найди золотой столб на выходе.</p>
         <button class="btn" onclick="launchGame('trials')">Запустить</button>
       </div>
+      <div class="game-card">
+        <h3>Космос</h3>
+        <p>Полёт между планетами. Кнопка A — гравитация вкл/выкл.</p>
+        <button class="btn" onclick="launchGame('space')">Запустить</button>
+      </div>
+      <div class="game-card">
+        <h3>Подводный мир</h3>
+        <p>Собери все светящиеся сокровища среди рыбок.</p>
+        <button class="btn" onclick="launchGame('underwater')">Запустить</button>
+      </div>
+      <div class="game-card">
+        <h3>Город: квесты</h3>
+        <p>Найди все зелёные кольца по городу.</p>
+        <button class="btn" onclick="launchGame('cityquest')">Запустить</button>
+      </div>
     </div>
-    <div id="pc-view-container"></div>
+    <div id="pc-view-container"><div id="pc-hud"></div></div>
   </div>
 </div>
 
 <div id="vr-container">
-  <div id="left-view"></div>
-  <div id="right-view"></div>
+  <div id="left-view"><div class="vr-hud" id="left-hud"></div></div>
+  <div id="right-view"><div class="vr-hud" id="right-hud"></div></div>
 </div>
 
 <script>
@@ -122,6 +139,12 @@ let trialGoalPos = new THREE.Vector3(0, 1.7, 0);
 let playerVelY = 0;
 let isGrounded = false;
 let lastWrittenPos = { x: 0, y: 0, z: 0 };
+let fishList = [];
+let collectibles = [];
+let collectedSet = [];
+let totalCollectibles = 0;
+let collectedCount = 0;
+let spaceGravity = false;
 
 function posSameAsWritten(x, y, z, eps) {
   if (eps === undefined) eps = 0.05;
@@ -241,13 +264,19 @@ function launchGame(gameName) {
   playerPos.set(0, 1.7, 10);
   playerVelY = 0;
   isGrounded = true;
+  playerVelY = 0;
+  isGrounded = true;
+  spaceGravity = false;
+  trialCompleted = false;
+  collectedCount = 0;
+  if (gameName === 'space') {
+    playerPos.set(0, 25, 30);
+    spaceGravity = true;
+  }
   if (role === 'pc') {
     pcGameActive = true;
-    // Movement basis on PC is LOCAL (not tied to the phone's sensors),
-    // so walking always works. In the trials you face INTO the maze.
-    pcMoveYaw = (gameName === 'trials') ? Math.PI : 0;
     initPCStreamScene();
-    // Write the REAL spawn (maze start) to the DB atomically so the phone
+    // Write the REAL spawn to the DB atomically so the phone
     // never reads the stale (0,1.7,10) and teleports inside a wall.
     sessionRef.update({ status: 'playing', game: gameName, pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z } });
   } else if (sessionRef) {
@@ -494,12 +523,216 @@ function buildCityEnvironment(sceneTarget) {
   });
 }
 
+function buildSpaceEnvironment(sceneTarget) {
+  sceneTarget.background = new THREE.Color(0x05060f);
+  var starPos = [];
+  for (var s = 0; s < 1500; s++) {
+    starPos.push(new THREE.Vector3((Math.random() - 0.5) * 900, (Math.random() - 0.5) * 900, (Math.random() - 0.5) * 900));
+  }
+  var stars = new THREE.Points(
+    new THREE.BufferGeometry().setFromPoints(starPos),
+    new THREE.PointsMaterial({ color: 0xffffff, size: 1.2 })
+  );
+  sceneTarget.add(stars);
+
+  sceneTarget.add(new THREE.AmbientLight(0xffffff, 0.4));
+  var sun = new THREE.DirectionalLight(0xffffff, 1.1);
+  sun.position.set(120, 200, 80);
+  sceneTarget.add(sun);
+
+  var planetData = [
+    { x: -60, z: -40, r: 10, c: 0xff6b6b, ring: true },
+    { x: 50, z: -70, r: 14, c: 0x4ecdc4, ring: false },
+    { x: 85, z: 55, r: 8,  c: 0xffd93d, ring: true },
+    { x: -75, z: 60, r: 12, c: 0x6c5ce7, ring: false },
+    { x: 0,  z: 95, r: 16, c: 0xfd9644, ring: true },
+    { x: -30, z: -95, r: 9, c: 0x45aaf2, ring: false }
+  ];
+  planetData.forEach(function(p) {
+    var sphere = new THREE.Mesh(
+      new THREE.SphereGeometry(p.r, 24, 24),
+      new THREE.MeshStandardMaterial({ color: p.c, emissive: p.c, emissiveIntensity: 0.15 })
+    );
+    sphere.position.set(p.x, 0, p.z);
+    sceneTarget.add(sphere);
+    if (p.ring) {
+      var ring = new THREE.Mesh(
+        new THREE.TorusGeometry(p.r + 3, 0.6, 8, 32),
+        new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.2 })
+      );
+      ring.rotation.x = Math.PI / 2.2;
+      ring.position.copy(sphere.position);
+      sceneTarget.add(ring);
+    }
+  });
+
+  var platform = new THREE.Mesh(
+    new THREE.CylinderGeometry(170, 170, 1, 48),
+    new THREE.MeshStandardMaterial({ color: 0x1b1e2a })
+  );
+  platform.position.y = -2;
+  sceneTarget.add(platform);
+
+  targetQuaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'YXZ'));
+  currentQuaternion.copy(targetQuaternion);
+  playerPos.set(0, 1.7, 30);
+  playerVelY = 0;
+  isGrounded = true;
+}
+
+function buildUnderwaterEnvironment(sceneTarget) {
+  sceneTarget.background = new THREE.Color(0x06263f);
+  sceneTarget.fog = new THREE.Fog(0x06263f, 40, 220);
+  sceneTarget.add(new THREE.AmbientLight(0x88bbff, 0.55));
+  var light = new THREE.DirectionalLight(0x88ccff, 0.8);
+  light.position.set(0, 120, 0);
+  sceneTarget.add(light);
+
+  var ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(400, 400),
+    new THREE.MeshStandardMaterial({ color: 0x0a3555 })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  sceneTarget.add(ground);
+
+  var rockMat = new THREE.MeshStandardMaterial({ color: 0x1a4a6a });
+  for (var i = 0; i < 22; i++) {
+    var rock = new THREE.Mesh(new THREE.DodecahedronGeometry(2 + Math.random() * 3), rockMat);
+    rock.position.set((Math.random() - 0.5) * 300, 1, (Math.random() - 0.5) * 300);
+    sceneTarget.add(rock);
+  }
+
+  fishList = [];
+  var fishColors = [0xff6b6b, 0xffd93d, 0x4ecdc4, 0x45aaf2, 0xff9ff3];
+  for (var f = 0; f < 30; f++) {
+    var fish = new THREE.Mesh(
+      new THREE.ConeGeometry(0.8, 2.4, 8),
+      new THREE.MeshStandardMaterial({ color: fishColors[f % fishColors.length], emissive: fishColors[f % fishColors.length], emissiveIntensity: 0.2 })
+    );
+    fish.rotation.x = Math.PI / 2;
+    fish.position.set((Math.random() - 0.5) * 260, 3 + Math.random() * 12, (Math.random() - 0.5) * 260);
+    fish.userData.dir = Math.random() > 0.5 ? 1 : -1;
+    fish.userData.speed = 2 + Math.random() * 4;
+    sceneTarget.add(fish);
+    fishList.push(fish);
+  }
+
+  collectibles = [];
+  collectedSet = [];
+  var treasureMat = new THREE.MeshStandardMaterial({ color: 0xffe066, emissive: 0xffb300, emissiveIntensity: 0.9 });
+  for (var t = 0; t < 8; t++) {
+    var tr = new THREE.Mesh(new THREE.SphereGeometry(0.7, 16, 16), treasureMat);
+    tr.position.set((Math.random() - 0.5) * 200, 2 + Math.random() * 10, (Math.random() - 0.5) * 200);
+    sceneTarget.add(tr);
+    collectibles.push(tr);
+    collectedSet.push(false);
+  }
+  totalCollectibles = collectibles.length;
+  collectedCount = 0;
+
+  targetQuaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'YXZ'));
+  currentQuaternion.copy(targetQuaternion);
+  playerPos.set(0, 2, 0);
+  playerVelY = 0;
+  isGrounded = false;
+}
+
+function buildCityQuestEnvironment(sceneTarget) {
+  buildCityEnvironment(sceneTarget);
+  collectibles = [];
+  collectedSet = [];
+  var ringMat = new THREE.MeshBasicMaterial({ color: 0x2ecc71, side: THREE.DoubleSide });
+  var ringGeo = new THREE.RingGeometry(3, 3.6, 32);
+  var ringPositions = [[-60, 20], [-60, 60], [60, -60], [60, 60], [0, 120], [-120, 0], [120, 0], [0, -120]];
+  ringPositions.forEach(function(p) {
+    var ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(p[0], 3, p[1]);
+    sceneTarget.add(ring);
+    collectibles.push(ring);
+    collectedSet.push(false);
+  });
+  totalCollectibles = collectibles.length;
+  collectedCount = 0;
+  targetQuaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'YXZ'));
+  currentQuaternion.copy(targetQuaternion);
+  playerPos.set(0, 1.7, 0);
+  playerVelY = 0;
+  isGrounded = true;
+}
+
+function setHudText(text) {
+  var lh = document.getElementById('left-hud');
+  var rh = document.getElementById('right-hud');
+  var ph = document.getElementById('pc-hud');
+  if (lh) lh.innerText = text;
+  if (rh) rh.innerText = text;
+  if (ph) ph.innerText = text;
+}
+
+function updateHUD() {
+  if (currentActiveGame === 'underwater' || currentActiveGame === 'cityquest') {
+    if (!trialCompleted) {
+      setHudText('Собрано: ' + collectedCount + ' / ' + totalCollectibles);
+      if (collectedCount >= totalCollectibles) {
+        trialCompleted = true;
+        setHudText('ПОБЕДА! Всё собрано');
+      }
+    }
+  } else if (currentActiveGame === 'space') {
+    setHudText('Космос: A — вверх, B — вниз');
+  }
+}
+
+function updateWorld(dt) {
+  for (var i = 0; i < fishList.length; i++) {
+    var f = fishList[i];
+    f.position.x += f.userData.dir * f.userData.speed * dt;
+    if (f.position.x > 140) f.userData.dir = -1;
+    if (f.position.x < -140) f.userData.dir = 1;
+    f.position.y += Math.sin(Date.now() * 0.002 + i) * 0.003;
+  }
+  if (collectibles.length && !trialCompleted) {
+    for (var c = 0; c < collectibles.length; c++) {
+      if (collectedSet[c]) continue;
+      var dx = playerPos.x - collectibles[c].position.x;
+      var dy = playerPos.y - collectibles[c].position.y;
+      var dz = playerPos.z - collectibles[c].position.z;
+      if (dx * dx + dy * dy + dz * dz < 16) {
+        collectedSet[c] = true;
+        collectedCount++;
+        collectibles[c].visible = false;
+        updateHUD();
+      }
+    }
+  }
+}
+
+function getVerticalAxis() {
+  var pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (var i = 0; i < pads.length; i++) {
+    var gp = pads[i];
+    if (gp && gp.connected) {
+      var up = gp.buttons[0] ? (gp.buttons[0].pressed ? 1 : 0) : 0;
+      var down = gp.buttons[1] ? (gp.buttons[1].pressed ? 1 : 0) : 0;
+      return up - down;
+    }
+  }
+  return 0;
+}
+
 function initPCStreamScene() {
   const container = document.getElementById('pc-view-container');
   container.innerHTML = '';
   pcScene = new THREE.Scene();
   if (currentActiveGame === 'trials') {
     initTrialsEnvironment(pcScene);
+  } else if (currentActiveGame === 'space') {
+    buildSpaceEnvironment(pcScene);
+  } else if (currentActiveGame === 'underwater') {
+    buildUnderwaterEnvironment(pcScene);
+  } else if (currentActiveGame === 'cityquest') {
+    buildCityQuestEnvironment(pcScene);
   } else {
     buildCityEnvironment(pcScene);
   }
@@ -542,6 +775,10 @@ function updateGamepadMovement() {
   }
   if (Math.abs(stickX) < 0.15 && Math.abs(stickY) < 0.15) return;
 
+  applyMoveToPlayer(stickX, stickY);
+}
+
+function applyMoveToPlayer(stickX, stickY) {
   var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
   var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
   forward.y = 0; forward.normalize();
@@ -550,6 +787,12 @@ function updateGamepadMovement() {
   move.addScaledVector(forward, -stickY);
   move.addScaledVector(right, stickX);
   move.normalize().multiplyScalar(gamepadMoveSpeed * 0.016);
+
+  // In space the player floats: A/B buttons move up/down.
+  if (currentActiveGame === 'space') {
+    var vy = getVerticalAxis();
+    move.y += vy * 16 * 0.016;
+  }
 
   if (currentActiveGame === 'trials' && mazeWalls.length) {
     var tryX = playerPos.x + move.x;
@@ -574,9 +817,6 @@ function animatePC() {
 
   if (!pcRenderer || !pcCamera) return;
 
-  // The PC gamepad is the movement authority when it's connected; the phone
-  // mirrors position. If the gamepad lives on the phone, the phone writes its
-  // pos and the PC listener mirrors it here. Either way the PC view follows.
   updateGamepadMovement();
 
   if (pcStreamActive) {
@@ -587,6 +827,9 @@ function animatePC() {
     pcCamera.position.set(Math.cos(t) * 180, 130, Math.sin(t) * 180);
     pcCamera.lookAt(0, 30, 0);
   }
+
+  updateWorld(0.016);
+  updateHUD();
 
   pcRenderer.render(pcScene, pcCamera);
 }
@@ -623,6 +866,12 @@ function initVR3D() {
   scene = new THREE.Scene();
   if (currentActiveGame === 'trials') {
     initTrialsEnvironment(scene);
+  } else if (currentActiveGame === 'space') {
+    buildSpaceEnvironment(scene);
+  } else if (currentActiveGame === 'underwater') {
+    buildUnderwaterEnvironment(scene);
+  } else if (currentActiveGame === 'cityquest') {
+    buildCityQuestEnvironment(scene);
   } else {
     buildCityEnvironment(scene);
   }
@@ -696,28 +945,11 @@ function animateVR() {
   // Phone movement: only the connected gamepad stick
   var joy = getGamepadMove();
   if (joy.x !== 0 || joy.y !== 0) {
-    var forward = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
-    var right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentQuaternion);
-    forward.y = 0; forward.normalize();
-    right.y = 0; right.normalize();
-    var move = new THREE.Vector3();
-    move.addScaledVector(forward, -joy.y);
-    move.addScaledVector(right, joy.x);
-    move.normalize().multiplyScalar(14 * 0.016);
-    if (currentActiveGame === 'trials' && mazeWalls.length) {
-      var tryXp = playerPos.x + move.x;
-      var tryZp = playerPos.z + move.z;
-      if (canMoveTo(tryXp, playerPos.z)) playerPos.x = tryXp;
-      if (canMoveTo(playerPos.x, tryZp)) playerPos.z = tryZp;
-      checkTrialsProgress();
-    } else {
-      playerPos.add(move);
-    }
-    if (sessionRef && isPlaying && !posSameAsWritten(playerPos.x, playerPos.y, playerPos.z, 0.001)) {
-      lastWrittenPos = { x: playerPos.x, y: playerPos.y, z: playerPos.z };
-      sessionRef.update({ pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z } });
-    }
+    applyMoveToPlayer(joy.x, joy.y);
   }
+
+  updateWorld(0.016);
+  updateHUD();
 
   var ipd = 0.032;
   var offL = new THREE.Vector3(-ipd, 0, 0).applyQuaternion(currentQuaternion);
