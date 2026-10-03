@@ -106,10 +106,11 @@
         <button class="btn" onclick="launchGame('zombie')">Запустить</button>
       </div>
       <div class="game-card">
-        <h3>Беги</h3>
-        <p>Бесконечная дорога зигзагом. Левый стик — поворот.</p>
-        <button class="btn" onclick="launchGame('run')">Запустить</button>
+        <h3>Симулятор готовки</h3>
+        <p>Собери бургер, посмотри на кнопку ГОТОВО и нажми правый стик. Неси еду клиенту.</p>
+        <button class="btn" onclick="launchGame('cooking')">Запустить</button>
       </div>
+      
       <div class="game-card">
         <h3>Беги</h3>
         <p>Бесконечная дорога. Левый стик — поворот.</p>
@@ -181,6 +182,22 @@ let lastShotTime = 0;
 let runSegments = [];
 let runSpeed = 22;
 let runOffsetX = 0;
+var cookingState = 'collect';
+var cookingSelected = [];
+var cookingScore = 0;
+var cookingServeCount = 0;
+var cookingFoodMesh = null;
+var cookStations = [];
+var cookDoneButton = null;
+var cookDoneMat = null;
+var cookGazeItem = null;
+var cookingCustomer = null;
+var cookingCustomerOrder = [];
+var cookingCustomerActive = false;
+var cookingCustomerMode = 'idle';
+var cookingRespawnTimer = 0;
+var cookPreviewGroup = null;
+var cookPreviewDirty = false;
 
 function posSameAsWritten(x, y, z, eps) {
   if (eps === undefined) eps = 0.05;
@@ -321,6 +338,9 @@ function launchGame(gameName) {
     isGrounded = true;
     runSpeed = 22;
     runOffsetX = 0;
+  } else if (gameName === 'cooking') {
+    playerPos.set(0, 1.7, 2);
+    isGrounded = true;
   }
   if (role === 'pc') {
     pcGameActive = true;
@@ -844,7 +864,374 @@ function buildRunEnvironment(sceneTarget) {
   runOffsetX = 0;
 }
 
-function setHudText(text) {
+var COOK_INGREDIENTS = [
+  { id: 'cutlet', name: 'Котлета', color: 0x8d5524 },
+  { id: 'bun', name: 'Булка', color: 0xe8c07a },
+  { id: 'salad', name: 'Салат', color: 0x2ecc71 },
+  { id: 'cheese', name: 'Сыр', color: 0xf1c40f },
+  { id: 'ketchup', name: 'Кетчуп', color: 0xe74c3c },
+  { id: 'mustard', name: 'Горчица', color: 0xf5b041 },
+  { id: 'sesame', name: 'Кунжут', color: 0xfdfefe }
+];
+
+function cookIngName(id) {
+  for (var i = 0; i < COOK_INGREDIENTS.length; i++) if (COOK_INGREDIENTS[i].id === id) return COOK_INGREDIENTS[i].name;
+  return '?';
+}
+
+function makeLabel(text, bg, fontPx, scaleW) {
+  var c = document.createElement('canvas');
+  c.width = 1024; c.height = 192;
+  var ctx = c.getContext('2d');
+  ctx.fillStyle = bg || 'rgba(0,0,0,0.72)';
+  ctx.fillRect(0, 0, 1024, 192);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold ' + (fontPx || 64) + 'px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 512, 96);
+  var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c) }));
+  sp.scale.set(scaleW || 2.4, (scaleW || 2.4) * 0.1875, 1);
+  return sp;
+}
+
+function buildCookingEnvironment(sceneTarget) {
+  sceneTarget.background = new THREE.Color(0x1a1715);
+  sceneTarget.fog = new THREE.Fog(0x1a1715, 30, 120);
+  sceneTarget.add(new THREE.AmbientLight(0xffffff, 0.75));
+  var light = new THREE.DirectionalLight(0xfff5e6, 1.0);
+  light.position.set(6, 30, 10);
+  sceneTarget.add(light);
+
+  var floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 40), new THREE.MeshStandardMaterial({ color: 0x3a342e }));
+  floor.rotation.x = -Math.PI / 2;
+  sceneTarget.add(floor);
+  var wallMat = new THREE.MeshStandardMaterial({ color: 0x4a4238 });
+  var back = new THREE.Mesh(new THREE.BoxGeometry(60, 8, 1), wallMat);
+  back.position.set(0, 4, -14);
+  sceneTarget.add(back);
+  var wl = new THREE.Mesh(new THREE.BoxGeometry(1, 8, 28), wallMat);
+  wl.position.set(-30, 4, 0);
+  sceneTarget.add(wl);
+  var wr = new THREE.Mesh(new THREE.BoxGeometry(1, 8, 28), wallMat);
+  wr.position.set(30, 4, 0);
+  sceneTarget.add(wr);
+
+  var counter = new THREE.Mesh(new THREE.BoxGeometry(30, 1, 3.2), new THREE.MeshStandardMaterial({ color: 0x5d4b3a }));
+  counter.position.set(0, 0.5, -7);
+  sceneTarget.add(counter);
+
+  cookStations = [];
+  var stationX = [-12, -8, -4, 0, 4, 8, 12];
+  COOK_INGREDIENTS.forEach(function(ing, i) {
+    var x = stationX[i];
+    var plate = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.08, 20), new THREE.MeshStandardMaterial({ color: 0xcccccc }));
+    plate.position.set(x, 1.06, -7);
+    sceneTarget.add(plate);
+    var mat = new THREE.MeshStandardMaterial({ color: ing.color });
+    var mesh = null;
+    if (ing.id === 'cutlet') mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.68, 0.25, 16), mat);
+    else if (ing.id === 'bun') mesh = new THREE.Mesh(new THREE.SphereGeometry(0.62, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), mat);
+    else if (ing.id === 'cheese') mesh = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.18, 0.8), mat);
+    else if (ing.id === 'salad') mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.45, 0), mat);
+    else if (ing.id === 'ketchup' || ing.id === 'mustard') mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.32, 0.5, 12), mat);
+    else if (ing.id === 'sesame') {
+      mesh = new THREE.Group();
+      for (var s = 0; s < 10; s++) {
+        var dot = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 6), mat);
+        dot.position.set((Math.random() - 0.5) * 0.9, 0.06, (Math.random() - 0.5) * 0.9);
+        mesh.add(dot);
+      }
+    }
+    if (mesh) {
+      mesh.position.set(x, 1.55, -7);
+      sceneTarget.add(mesh);
+    }
+    var label = makeLabel(ing.name, null, 52, 2.0);
+    label.position.set(x, 2.7, -7);
+    sceneTarget.add(label);
+    cookStations.push({ id: ing.id, name: ing.name, plate: plate, mesh: mesh, mat: mat, picked: false, x: x, z: -7 });
+  });
+
+  cookDoneMat = new THREE.MeshStandardMaterial({ color: 0x27ae60, emissive: 0x000000 });
+  var pedestal = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.1, 1.6), new THREE.MeshStandardMaterial({ color: 0x555555 }));
+  pedestal.position.set(22, 0.55, -3);
+  sceneTarget.add(pedestal);
+  var btn = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.35, 24), cookDoneMat);
+  btn.position.set(22, 1.35, -3);
+  sceneTarget.add(btn);
+  cookDoneButton = btn;
+  var dl = makeLabel('ГОТОВО', 'rgba(39,174,96,0.8)', 54, 2.2);
+  dl.position.set(22, 2.3, -3);
+  sceneTarget.add(dl);
+
+  var stand = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 0.12, 20), new THREE.MeshStandardMaterial({ color: 0x888888 }));
+  stand.position.set(-20, 0.06, -6);
+  sceneTarget.add(stand);
+
+  cookingState = 'collect';
+  cookingSelected = [];
+  cookingScore = 0;
+  cookingServeCount = 0;
+  cookingFoodMesh = null;
+  cookingCustomerActive = false;
+  cookingCustomerMode = 'idle';
+  cookingRespawnTimer = 1.2;
+  cookPreviewGroup = null;
+  cookPreviewDirty = false;
+  if (cookingCustomer) { sceneTarget.remove(cookingCustomer); cookingCustomer = null; }
+
+  targetQuaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'YXZ'));
+  currentQuaternion.copy(targetQuaternion);
+  playerPos.set(0, 1.7, 2);
+  playerVelY = 0;
+  isGrounded = true;
+}
+
+function buildCookCustomer(sceneTarget) {
+  var grp = new THREE.Group();
+  var shirtMat = new THREE.MeshStandardMaterial({ color: 0x3498db });
+  var pantsMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50 });
+  var l1 = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.55, 0.18), pantsMat);
+  l1.position.set(-0.16, 0.5, 0);
+  grp.add(l1);
+  var l2 = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.55, 0.18), pantsMat);
+  l2.position.set(0.16, 0.5, 0);
+  grp.add(l2);
+  var torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.65, 0.3), shirtMat);
+  torso.position.set(0, 1.1, 0);
+  grp.add(torso);
+  var head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 16), new THREE.MeshStandardMaterial({ color: 0xe8c8a0 }));
+  head.position.set(0, 1.68, 0);
+  grp.add(head);
+  var armL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.6, 0.16), shirtMat);
+  armL.position.set(-0.38, 1.15, 0);
+  grp.add(armL);
+  var armR = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.6, 0.16), shirtMat);
+  armR.position.set(0.38, 1.15, 0);
+  grp.add(armR);
+  return grp;
+}
+
+function spawnCookCustomer(sceneTarget) {
+  if (cookingCustomer) { sceneTarget.remove(cookingCustomer); }
+  cookingCustomer = buildCookCustomer(sceneTarget);
+  cookingCustomer.position.set(-20, 0, -2);
+  sceneTarget.add(cookingCustomer);
+  cookingCustomerOrder = [];
+  var pool = COOK_INGREDIENTS.slice();
+  var count = 2 + Math.floor(Math.random() * 2);
+  for (var i = 0; i < count; i++) {
+    var idx = Math.floor(Math.random() * pool.length);
+    cookingCustomerOrder.push(pool[idx].id);
+  }
+  cookingCustomerActive = true;
+  cookingCustomerMode = 'entering';
+  cookingRespawnTimer = 0;
+}
+
+function updateCookCustomer(dt, sceneTarget) {
+  if (!cookingCustomerActive) return;
+  var target = cookingCustomer.position.clone();
+  if (cookingCustomerMode === 'entering') {
+    target.set(-20, 0, -2);
+    if (cookingCustomer.position.z < -2.4) cookingCustomerMode = 'waiting';
+  } else if (cookingCustomerMode === 'waiting') {
+    target.set(-20, 0, -2);
+  } else if (cookingCustomerMode === 'leaving') {
+    target.set(-20, 0, -6);
+    if (cookingCustomer.position.z < -6.5) {
+      cookingCustomerActive = false;
+      cookingCustomerMode = 'idle';
+      if (cookingCustomer) { sceneTarget.remove(cookingCustomer); cookingCustomer = null; }
+      cookingRespawnTimer = 1.5;
+      return;
+    }
+  }
+  cookingCustomer.position.lerp(target, 0.08);
+}
+
+function buildCookPreview(sceneTarget, count) {
+  if (cookPreviewGroup) { sceneTarget.remove(cookPreviewGroup); cookPreviewGroup = null; }
+  if (count <= 0) return;
+  var grp = new THREE.Group();
+  var y = 0;
+  for (var i = 0; i < count; i++) {
+    var id = cookingSelected[i];
+    var ing = null;
+    for (var k = 0; k < COOK_INGREDIENTS.length; k++) if (COOK_INGREDIENTS[k].id === id) ing = COOK_INGREDIENTS[k];
+    if (!ing) continue;
+    var mat = new THREE.MeshStandardMaterial({ color: ing.color });
+    var m = null;
+    if (ing.id === 'cutlet') m = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.6, 0.25, 14), mat);
+    else if (ing.id === 'bun') m = new THREE.Mesh(new THREE.SphereGeometry(0.55, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat);
+    else if (ing.id === 'cheese') m = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.15, 0.75), mat);
+    else if (ing.id === 'salad') m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.4, 0), mat);
+    else if (ing.id === 'ketchup' || ing.id === 'mustard') m = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 0.45, 10), mat);
+    else if (ing.id === 'sesame') {
+      m = new THREE.Group();
+      for (var s = 0; s < 10; s++) {
+        var dot = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 6), mat);
+        dot.position.set((Math.random() - 0.5) * 0.8, 0.05, (Math.random() - 0.5) * 0.8);
+        m.add(dot);
+      }
+    }
+    if (m) {
+      m.position.set(0, y + 0.16, 0);
+      grp.add(m);
+      y += 0.34;
+    }
+  }
+  grp.position.set(-20, 1.0, -1.6);
+  sceneTarget.add(grp);
+  cookPreviewGroup = grp;
+}
+
+function updateCookPreview(sceneTarget) {
+  if (!cookPreviewDirty) return;
+  cookPreviewDirty = false;
+  buildCookPreview(sceneTarget, cookingSelected.length);
+}
+
+function cookingRightStickAction(sceneTarget) {
+  if (cookGazeItem === 'done') {
+    if (cookingSelected.length > 0) {
+      cookingState = 'serve';
+      setHudText('Неси бургер клиенту!');
+    }
+  } else if (cookGazeItem === 'customer') {
+    if (cookingState === 'serve' && cookingFoodMesh) {
+      cookingScore += 100;
+      cookingServeCount++;
+      if (cookingCustomer) { sceneTarget.remove(cookingCustomer); cookingCustomer = null; }
+      cookingCustomerActive = false;
+      cookingCustomerMode = 'idle';
+      cookingRespawnTimer = 1.5;
+      cookingState = 'collect';
+      cookingSelected = [];
+      cookingFoodMesh = null;
+      cookPreviewDirty = true;
+      updateCookPreview(sceneTarget);
+      setHudText('Спасибо! +100. Готовь следующий.');
+    }
+  } else if (cookGazeItem === 'station') {
+    if (cookingState === 'collect') {
+      var st = cookGazeStation;
+      if (st && !st.picked) {
+        st.picked = true;
+        if (st.mesh) st.mesh.visible = false;
+        cookingSelected.push(st.id);
+        cookPreviewDirty = true;
+        updateCookPreview(sceneTarget);
+      }
+    }
+  }
+}
+
+var cookingRightStickPrev = false;
+
+function handleCookingRightStick(sceneTarget) {
+  var pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  var rx = 0, ry = 0;
+  for (var i = 0; i < pads.length; i++) {
+    var gp = pads[i];
+    if (gp && gp.connected) {
+      rx = gp.axes[2] || 0;
+      ry = gp.axes[3] || 0;
+      break;
+    }
+  }
+  if (cookingState === 'serve') {
+    // Right stick axis carries the food (2-stick movement)
+    if (Math.abs(rx) > 0.15 || Math.abs(ry) > 0.15) {
+      if (!cookingFoodMesh) {
+        cookingFoodMesh = buildCookPreview(sceneTarget, cookingSelected.length);
+        if (cookingFoodMesh) cookingFoodMesh.position.set(-20, 1.0, -1.6);
+      }
+      if (cookingFoodMesh) {
+        cookingFoodMesh.position.x += rx * 0.3;
+        cookingFoodMesh.position.z += ry * 0.3;
+      }
+      cookingRightStickPrev = true;
+    } else {
+      cookingRightStickPrev = false;
+    }
+    // Serve when the food reaches the customer
+    if (cookingFoodMesh && cookingCustomer && cookingCustomerActive) {
+      var d = cookingFoodMesh.position.distanceTo(cookingCustomer.position);
+      if (d < 2.2) serveCookFood(sceneTarget);
+    }
+    return;
+  }
+  // collect / other states: right stick press = pick ingredient / press done
+  if ((Math.abs(rx) > 0.6 || Math.abs(ry) > 0.6) && !cookingRightStickPrev) {
+    cookingRightStickPrev = true;
+    cookingRightStickAction(sceneTarget);
+  } else if (Math.abs(rx) < 0.15 && Math.abs(ry) < 0.15) {
+    cookingRightStickPrev = false;
+  }
+}
+
+function serveCookFood(sceneTarget) {
+  if (cookingState !== 'serve') return;
+  cookingScore += 100;
+  cookingServeCount++;
+  if (cookingCustomer) { sceneTarget.remove(cookingCustomer); cookingCustomer = null; }
+  cookingCustomerActive = false;
+  cookingCustomerMode = 'idle';
+  cookingRespawnTimer = 1.5;
+  cookingState = 'collect';
+  cookingSelected = [];
+  if (cookingFoodMesh) { sceneTarget.remove(cookingFoodMesh); cookingFoodMesh = null; }
+  cookPreviewDirty = true;
+  updateCookPreview(sceneTarget);
+  setHudText('Спасибо! +100. Готовь следующий.');
+}
+
+function setCookingGazeTarget(sceneTarget) {
+  cookGazeItem = null;
+  cookGazeStation = null;
+  if (currentActiveGame !== 'cooking') return;
+  var p = playerPos.clone();
+  p.y = 1.4;
+  for (var i = 0; i < cookStations.length; i++) {
+    var st = cookStations[i];
+    var d = p.distanceTo(new THREE.Vector3(st.x, 1.5, st.z));
+    if (d < 2.6) {
+      cookGazeItem = 'station';
+      cookGazeStation = st;
+      return;
+    }
+  }
+  if (cookDoneButton) {
+    var dd = p.distanceTo(cookDoneButton.position);
+    if (dd < 2.6) { cookGazeItem = 'done'; return; }
+  }
+  if (cookingCustomer) {
+    var cd = p.distanceTo(cookingCustomer.position);
+    if (cd < 3.2) { cookGazeItem = 'customer'; return; }
+  }
+}
+
+function updateCookingWorld(sceneTarget, dt) {
+  if (currentActiveGame !== 'cooking') return;
+  setCookingGazeTarget(sceneTarget);
+  if (cookingCustomerActive) {
+    updateCookCustomer(dt, sceneTarget);
+  } else if (cookingRespawnTimer > 0) {
+    cookingRespawnTimer -= dt;
+    if (cookingRespawnTimer <= 0) {
+      spawnCookCustomer(sceneTarget);
+    }
+  }
+  updateCookPreview(sceneTarget);
+  if (cookDoneMat) {
+    cookDoneMat.emissive.set(cookGazeItem === 'done' ? 0x2ecc71 : 0x000000);
+  }
+  if (cookingSelected.length > 0 && cookingState === 'collect') {
+    setHudText('Собрано: ' + cookingSelected.length + ' ингр. Нажми ГОТОВО');
+  }
+}
   var lh = document.getElementById('left-hud');
   var rh = document.getElementById('right-hud');
   var ph = document.getElementById('pc-hud');
@@ -1080,8 +1467,17 @@ function checkShootButton() {
 //  - city/trials: jump
 //  - space: toggle gravity on/off
 //  - underwater: hold to swim up
+function getCurrentScene() {
+  return (role === 'pc' && pcScene) ? pcScene : scene;
+}
+
 function handleRightStick() {
   var active = getRightStick();
+  if (currentActiveGame === 'cooking') {
+    handleCookingRightStick(getCurrentScene());
+    rightStickPrev = active;
+    return;
+  }
   if (active && !rightStickPrev) {
     if (currentActiveGame === 'zombie') {
       if (Date.now() - lastShotTime > 180) {
@@ -1180,6 +1576,8 @@ function initPCStreamScene() {
     buildZombieEnvironment(pcScene);
   } else if (currentActiveGame === 'run') {
     buildRunEnvironment(pcScene);
+  } else if (currentActiveGame === 'cooking') {
+    buildCookingEnvironment(pcScene);
   } else {
     buildCityEnvironment(pcScene);
   }
@@ -1298,6 +1696,8 @@ function animatePC() {
     updateBullets(0.016);
   } else if (currentActiveGame === 'run') {
     updateRun(0.016);
+  } else if (currentActiveGame === 'cooking') {
+    updateCookingWorld(pcScene, 0.016);
   }
   updateHUD();
 
@@ -1346,6 +1746,8 @@ function initVR3D() {
     buildRoofRunEnvironment(scene);
   } else if (currentActiveGame === 'zombie') {
     buildZombieEnvironment(scene);
+  } else if (currentActiveGame === 'cooking') {
+    buildCookingEnvironment(scene);
   } else {
     buildCityEnvironment(scene);
   }
@@ -1428,6 +1830,8 @@ function animateVR() {
   if (currentActiveGame === 'zombie') {
     updateZombies(0.016);
     updateBullets(0.016);
+  } else if (currentActiveGame === 'cooking') {
+    updateCookingWorld(scene, 0.016);
   }
   updateHUD();
 
