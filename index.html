@@ -1012,7 +1012,12 @@ function checkShootButton() {
 function handleRightStick() {
   var active = getRightStick();
   if (active && !rightStickPrev) {
-    if (currentActiveGame === 'space') {
+    if (currentActiveGame === 'zombie') {
+      if (Date.now() - lastShotTime > 180) {
+        shoot();
+        lastShotTime = Date.now();
+      }
+    } else if (currentActiveGame === 'space') {
       spaceGravity = !spaceGravity;
       setHudText(spaceGravity ? 'Гравитация: ВКЛ' : 'Гравитация: ВЫКЛ');
       setTimeout(function() { updateHUD(); }, 1500);
