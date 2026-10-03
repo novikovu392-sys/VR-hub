@@ -831,7 +831,8 @@ function shoot() {
   var b = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffff88 }));
   b.position.copy(playerPos).add(new THREE.Vector3(0, 1.6, 0));
   b.userData = { dir: dir, life: 90 };
-  scene.add(b);
+  var tgt = (role === 'pc' && pcScene) ? pcScene : scene;
+  tgt.add(b);
   bullets.push(b);
 }
 
@@ -1350,6 +1351,10 @@ function animateVR() {
   handleRightStick();
   updatePhysics(0.016);
   updateWorld(0.016);
+  if (currentActiveGame === 'zombie') {
+    updateZombies(0.016);
+    updateBullets(0.016);
+  }
   updateHUD();
 
   var ipd = 0.032;
