@@ -5,24 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Sunflower VR Hub - Multiplayer Sync</title>
 <style>
-  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0f1115; font-family: sans-serif; user-select: none; }
-  #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #111; color: #fff; text-align: center; padding: 20px; box-sizing: border-box; }
-  h1 { color: #4aa3df; font-size: 28px; margin-bottom: 10px; }
-  p { color: #aaa; font-size: 15px; max-width: 400px; line-height: 1.4; margin-bottom: 20px; }
-  .btn { padding: 14px 28px; font-size: 18px; font-weight: bold; background: #4aa3df; color: #fff; border: none; border-radius: 10px; cursor: pointer; margin: 8px; }
-  .btn:active { background: #357abd; }
-  .btn-sec { background: #333; border: 1px solid #555; }
-  .btn-danger { background: #c0392b; border: 1px solid #e74c3c; }
-  input { padding: 14px; font-size: 20px; text-align: center; border-radius: 10px; border: 1px solid #555; background: #222; color: #fff; width: 200px; margin-bottom: 15px; letter-spacing: 4px; }
-  #pc-panel { display: none; width: 100%; height: 100%; background: #181c24; position: absolute; top: 0; left: 0; z-index: 900; padding: 16px; box-sizing: border-box; flex-direction: column; }
-  .top-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 12px; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; font-family: sans-serif; user-select: none; }
+  #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #000; color: #fff; text-align: center; padding: 20px; box-sizing: border-box; }
+  h1 { color: #f1c40f; font-size: 28px; margin-bottom: 10px; text-shadow: 0 0 12px rgba(241,196,15,0.5); }
+  p { color: #bbb; font-size: 15px; max-width: 400px; line-height: 1.4; margin-bottom: 20px; }
+  .btn { padding: 14px 28px; font-size: 18px; font-weight: bold; background: #f1c40f; color: #000; border: none; border-radius: 10px; cursor: pointer; margin: 8px; }
+  .btn:active { background: #d4ac0d; }
+  .btn-sec { background: #1a1a1a; border: 1px solid #f1c40f; color: #f1c40f; }
+  .btn-danger { background: #111; border: 1px solid #e74c3c; color: #e74c3c; }
+  input { padding: 14px; font-size: 20px; text-align: center; border-radius: 10px; border: 1px solid #f1c40f; background: #111; color: #f1c40f; width: 200px; margin-bottom: 15px; letter-spacing: 4px; }
+  #pc-panel { display: none; width: 100%; height: 100%; background: #0a0a0a; position: absolute; top: 0; left: 0; z-index: 900; padding: 16px; box-sizing: border-box; flex-direction: column; }
+  .top-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1c40f; padding-bottom: 12px; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
   .top-bar .left { text-align: left; }
   .top-bar .right { display: flex; gap: 10px; flex-wrap: wrap; }
   .main-content { display: flex; flex: 1; gap: 16px; overflow: hidden; min-height: 0; }
   .sidebar { width: 280px; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; }
-  .game-card { background: #222834; border: 1px solid #3a4454; border-radius: 12px; padding: 14px; text-align: left; }
-  .game-card h3 { margin: 0 0 10px 0; color: #4aa3df; }
-  .game-card p { font-size: 13px; color: #aaa; margin: 0 0 12px 0; }
+  .game-card { background: #111; border: 1px solid #f1c40f; border-radius: 12px; padding: 14px; text-align: left; }
+  .game-card h3 { margin: 0 0 10px 0; color: #f1c40f; }
+  .game-card p { font-size: 13px; color: #bbb; margin: 0 0 12px 0; }
   #pc-view-container { flex: 1; background: #000; border-radius: 12px; overflow: hidden; position: relative; min-width: 0; }
   #pc-view-container canvas { display: block; width: 100% !important; height: 100% !important; }
 
@@ -58,8 +58,8 @@
 <div id="pc-panel" style="display:none;">
   <div class="top-bar">
     <div class="left">
-      <h2 style="margin:0; color:#fff;">Sunflower VR Hub — Панель ПК</h2>
-      <p style="margin:5px 0 0 0; color:#4aa3df; font-size:16px;" id="pc-code-display">Код: ----</p>
+      <h2 style="margin:0; color:#f1c40f;">Sunflower VR Hub — Панель ПК</h2>
+      <p style="margin:5px 0 0 0; color:#f1c40f; font-size:16px;" id="pc-code-display">Код: ----</p>
     </div>
     <div class="right">
       <button class="btn btn-danger" onclick="exitGameFromPC()" id="pcExitBtn">Выйти из игры</button>
@@ -67,7 +67,7 @@
   </div>
   <div class="main-content">
     <div class="sidebar">
-      <h3 style="margin:0; color:#fff;">Доступные игры</h3>
+      <h3 style="margin:0; color:#f1c40f;">Доступные игры</h3>
       <div class="game-card">
         <h3>Город VR</h3>
         <p>Синхронный мегаполис со стационарными домами.</p>
@@ -92,6 +92,11 @@
         <h3>Город: квесты</h3>
         <p>Найди все зелёные кольца по городу.</p>
         <button class="btn" onclick="launchGame('cityquest')">Запустить</button>
+      </div>
+      <div class="game-card">
+        <h3>Паркур по крышам</h3>
+        <p>Прыгай между крышами. Правый стик — прыжок.</p>
+        <button class="btn" onclick="launchGame('roofrun')">Запустить</button>
       </div>
     </div>
     <div id="pc-view-container"><div id="pc-hud"></div></div>
@@ -146,6 +151,8 @@ let totalCollectibles = 0;
 let collectedCount = 0;
 let spaceGravity = false;
 let rightStickPrev = false;
+let roofGroup = [];
+let lastRoofIndex = -1;
 
 function posSameAsWritten(x, y, z, eps) {
   if (eps === undefined) eps = 0.05;
@@ -262,17 +269,18 @@ function launchGame(gameName) {
   currentActiveGame = gameName;
   trialCurrentIndex = 0;
   trialCompleted = false;
+  lastRoofIndex = -1;
   playerPos.set(0, 1.7, 10);
   playerVelY = 0;
   isGrounded = true;
-  playerVelY = 0;
-  isGrounded = true;
   spaceGravity = false;
-  trialCompleted = false;
   collectedCount = 0;
   if (gameName === 'space') {
     playerPos.set(0, 25, 30);
     spaceGravity = true;
+  } else if (gameName === 'roofrun') {
+    playerPos.set(0, 6, 20);
+    isGrounded = true;
   }
   if (role === 'pc') {
     pcGameActive = true;
@@ -662,6 +670,67 @@ function buildCityQuestEnvironment(sceneTarget) {
   isGrounded = true;
 }
 
+function buildRoofRunEnvironment(sceneTarget) {
+  sceneTarget.background = new THREE.Color(0x0a0a14);
+  sceneTarget.fog = new THREE.Fog(0x0a0a14, 60, 320);
+  sceneTarget.add(new THREE.AmbientLight(0xffffff, 0.6));
+  var moon = new THREE.DirectionalLight(0xfff0c0, 0.9);
+  moon.position.set(-60, 120, 40);
+  sceneTarget.add(moon);
+
+  var ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(600, 600),
+    new THREE.MeshStandardMaterial({ color: 0x11131a })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  sceneTarget.add(ground);
+
+  // Fixed rooftop platforms (x, z, width, depth, topY)
+  var roofData = [
+    { x: 0,    z: 20,  w: 22, d: 22, top: 6  },
+    { x: 30,   z: 5,   w: 18, d: 18, top: 9  },
+    { x: 60,   z: 20,  w: 24, d: 20, top: 12 },
+    { x: 92,   z: 2,   w: 16, d: 16, top: 15 },
+    { x: 120,  z: 22,  w: 20, d: 20, top: 9  },
+    { x: 150,  z: 4,   w: 18, d: 18, top: 6  },
+    { x: 30,   z: 45,  w: 16, d: 16, top: 12 },
+    { x: 60,   z: 55,  w: 20, d: 18, top: 15 },
+    { x: 92,   z: 48,  w: 18, d: 18, top: 18 },
+    { x: 120,  z: 55,  w: 16, d: 16, top: 12 }
+  ];
+  roofGroup = [];
+  roofData.forEach(function(r) {
+    var box = new THREE.Mesh(
+      new THREE.BoxGeometry(r.w, r.top, r.d),
+      new THREE.MeshStandardMaterial({ color: 0x1b1e2a, emissive: 0x1b1e2a, emissiveIntensity: 0.1 })
+    );
+    box.position.set(r.x, r.top / 2, r.z);
+    sceneTarget.add(box);
+    roofGroup.push({ mesh: box, x: r.x, z: r.z, w: r.w, d: r.d, top: r.top });
+  });
+
+  // Yellow collectible coins on roofs
+  collectibles = [];
+  collectedSet = [];
+  var coinMat = new THREE.MeshStandardMaterial({ color: 0xf1c40f, emissive: 0xf1c40f, emissiveIntensity: 0.8 });
+  roofData.forEach(function(r, idx) {
+    var coin = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 0.4, 16), coinMat);
+    coin.rotation.x = Math.PI / 2;
+    coin.position.set(r.x, r.top + 1.8, r.z);
+    sceneTarget.add(coin);
+    collectibles.push(coin);
+    collectedSet.push(false);
+  });
+  totalCollectibles = collectibles.length;
+  collectedCount = 0;
+
+  targetQuaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'YXZ'));
+  currentQuaternion.copy(targetQuaternion);
+  playerPos.set(0, 6, 20);
+  playerVelY = 0;
+  isGrounded = true;
+}
+
 function setHudText(text) {
   var lh = document.getElementById('left-hud');
   var rh = document.getElementById('right-hud');
@@ -671,10 +740,27 @@ function setHudText(text) {
   if (ph) ph.innerText = text;
 }
 
+function checkRoofRunProgress() {
+  if (trialCompleted) return;
+  var onRoof = -1;
+  for (var i = 0; i < roofGroup.length; i++) {
+    var r = roofGroup[i];
+    if (playerPos.x >= r.x - r.w / 2 && playerPos.x <= r.x + r.w / 2 &&
+        playerPos.z >= r.z - r.d / 2 && playerPos.z <= r.z + r.d / 2) {
+      if (Math.abs(playerPos.y - r.top) < 0.6) onRoof = i;
+    }
+  }
+  if (onRoof === -1) return;
+  if (onRoof > lastRoofIndex) {
+    lastRoofIndex = onRoof;
+    setHudText('Крыша: ' + (onRoof + 1) + ' / ' + roofGroup.length);
+  }
+}
+
 function updateHUD() {
-  if (currentActiveGame === 'underwater' || currentActiveGame === 'cityquest') {
+  if (currentActiveGame === 'underwater' || currentActiveGame === 'cityquest' || currentActiveGame === 'roofrun') {
     if (!trialCompleted) {
-      setHudText('Собрано: ' + collectedCount + ' / ' + totalCollectibles);
+      setHudText('Монеты: ' + collectedCount + ' / ' + totalCollectibles);
       if (collectedCount >= totalCollectibles) {
         trialCompleted = true;
         setHudText('ПОБЕДА! Всё собрано');
@@ -707,6 +793,12 @@ function updateWorld(dt) {
       }
     }
   }
+  // Respawn if you fall into the void in roofrun
+  if (currentActiveGame === 'roofrun' && playerPos.y < -5) {
+    playerPos.set(0, 6, 20);
+    playerVelY = 0;
+    isGrounded = true;
+  }
 }
 
 function getVerticalAxis() {
@@ -729,7 +821,7 @@ function getRightStick() {
     if (gp && gp.connected) {
       var rx = gp.axes[2] || 0;
       var ry = gp.axes[3] || 0;
-      if (Math.abs(rx) < 0.25 && Math.abs(ry) < 0.25) return false;
+      if (Math.abs(rx) < 0.15 && Math.abs(ry) < 0.15) return false;
       return true;
     }
   }
@@ -749,7 +841,7 @@ function handleRightStick() {
       setTimeout(function() { updateHUD(); }, 1500);
     } else if (currentActiveGame !== 'underwater') {
       if (isGrounded) {
-        playerVelY = 9;
+        playerVelY = (currentActiveGame === 'roofrun') ? 14 : 9;
         isGrounded = false;
       }
     }
@@ -759,7 +851,30 @@ function handleRightStick() {
 
 // Jump physics, space gravity and underwater swimming share this per-frame step.
 function updatePhysics(dt) {
-  if (currentActiveGame === 'trials' || currentActiveGame === 'city' || currentActiveGame === 'cityquest') {
+  if (currentActiveGame === 'roofrun') {
+    if (!isGrounded) {
+      playerVelY -= 22 * dt;
+      playerPos.y += playerVelY * dt;
+    }
+    // Land on the highest roof under the player
+    var landedY = 1.7;
+    for (var i = 0; i < roofGroup.length; i++) {
+      var r = roofGroup[i];
+      if (playerPos.x >= r.x - r.w / 2 && playerPos.x <= r.x + r.w / 2 &&
+          playerPos.z >= r.z - r.d / 2 && playerPos.z <= r.z + r.d / 2) {
+        if (r.top > landedY && r.top <= playerPos.y + 0.5) landedY = r.top;
+      }
+    }
+    if (playerPos.y <= landedY) {
+      playerPos.y = landedY;
+      playerVelY = 0;
+      isGrounded = true;
+    } else if (playerPos.y < 0) {
+      playerPos.y = 1.7;
+      playerVelY = 0;
+      isGrounded = true;
+    }
+  } else if (currentActiveGame === 'trials' || currentActiveGame === 'city' || currentActiveGame === 'cityquest') {
     if (!isGrounded) {
       playerVelY -= 22 * dt;
       playerPos.y += playerVelY * dt;
@@ -804,6 +919,8 @@ function initPCStreamScene() {
     buildUnderwaterEnvironment(pcScene);
   } else if (currentActiveGame === 'cityquest') {
     buildCityQuestEnvironment(pcScene);
+  } else if (currentActiveGame === 'roofrun') {
+    buildRoofRunEnvironment(pcScene);
   } else {
     buildCityEnvironment(pcScene);
   }
@@ -868,7 +985,23 @@ function applyMoveToPlayer(stickX, stickY) {
     playerPos.add(move);
   }
 
+  if (currentActiveGame === 'roofrun') {
+    // Falling off a roof edge: you drop and land on the roof below / ground
+    if (isGrounded) {
+      var onRoof = false;
+      for (var i = 0; i < roofGroup.length; i++) {
+        var r = roofGroup[i];
+        if (playerPos.x >= r.x - r.w / 2 && playerPos.x <= r.x + r.w / 2 &&
+            playerPos.z >= r.z - r.d / 2 && playerPos.z <= r.z + r.d / 2) {
+          if (Math.abs(playerPos.y - r.top) < 0.6) onRoof = true;
+        }
+      }
+      if (!onRoof) isGrounded = false;
+    }
+  }
+
   checkTrialsProgress();
+  checkRoofRunProgress();
 
   if (!posSameAsWritten(playerPos.x, playerPos.y, playerPos.z, 0.001)) {
     lastWrittenPos = { x: playerPos.x, y: playerPos.y, z: playerPos.z };
@@ -939,6 +1072,8 @@ function initVR3D() {
     buildUnderwaterEnvironment(scene);
   } else if (currentActiveGame === 'cityquest') {
     buildCityQuestEnvironment(scene);
+  } else if (currentActiveGame === 'roofrun') {
+    buildRoofRunEnvironment(scene);
   } else {
     buildCityEnvironment(scene);
   }
