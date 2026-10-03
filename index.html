@@ -105,6 +105,11 @@
         <p>Отбивайся от зомби, правый стик — стрельба.</p>
         <button class="btn" onclick="launchGame('zombie')">Запустить</button>
       </div>
+      <div class="game-card">
+        <h3>Беги</h3>
+        <p>Бесконечная дорога. Левый стик — поворот.</p>
+        <button class="btn" onclick="launchGame('run')">Запустить</button>
+      </div>
     </div>
     <div id="pc-view-container"><div id="pc-hud"></div></div>
   </div>
@@ -833,7 +838,7 @@ function shoot() {
   dir.y = 0;
   dir.normalize();
   var b = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffff88 }));
-  b.position.copy(playerPos).add(new THREE.Vector3(0, 1.35, 0));
+  b.position.copy(playerPos).add(new THREE.Vector3(0, 1.0, 0));
   b.userData = { dir: dir, life: 90 };
   var tgt = (role === 'pc' && pcScene) ? pcScene : scene;
   tgt.add(b);
@@ -1390,4 +1395,4 @@ function animateVR() {
 }
 </script>
 </body>
-</html>
+</html>o
