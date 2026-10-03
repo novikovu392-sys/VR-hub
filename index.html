@@ -1016,7 +1016,7 @@ function buildCookCustomer(sceneTarget) {
 function spawnCookCustomer(sceneTarget) {
   if (cookingCustomer) { sceneTarget.remove(cookingCustomer); }
   cookingCustomer = buildCookCustomer(sceneTarget);
-  cookingCustomer.position.set(-20, 0, -2);
+  cookingCustomer.position.set(-20, 0, 10);
   sceneTarget.add(cookingCustomer);
   cookingCustomerOrder = [];
   var pool = COOK_INGREDIENTS.slice();
@@ -1048,7 +1048,7 @@ function updateCookCustomer(dt, sceneTarget) {
       return;
     }
   }
-  cookingCustomer.position.lerp(target, 0.08);
+  cookingCustomer.position.lerp(target, 0.06);
 }
 
 function buildCookPreview(sceneTarget, count) {
@@ -1142,24 +1142,25 @@ function handleCookingRightStick(sceneTarget) {
     }
   }
   if (cookingState === 'serve') {
-    // Right stick axis carries the food (2-stick movement)
-    if (Math.abs(rx) > 0.15 || Math.abs(ry) > 0.15) {
-      if (!cookingFoodMesh) {
-        cookingFoodMesh = buildCookPreview(sceneTarget, cookingSelected.length);
-        if (cookingFoodMesh) cookingFoodMesh.position.set(-20, 1.0, -1.6);
+    // Food is held in front of the player; right stick nudges it around.
+    if (!cookingFoodMesh) {
+      cookingFoodMesh = buildCookPreview(sceneTarget, cookingSelected.length);
+    }
+    if (cookingFoodMesh) {
+      var fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+      fwd.y = 0; fwd.normalize();
+      var base = playerPos.clone().add(fwd.clone().multiplyScalar(1.4));
+      base.y = 1.0;
+      cookingFoodMesh.position.lerp(base, 0.3);
+      if (Math.abs(rx) > 0.15 || Math.abs(ry) > 0.15) {
+        cookingFoodMesh.position.x += rx * 0.25;
+        cookingFoodMesh.position.z += ry * 0.25;
       }
-      if (cookingFoodMesh) {
-        cookingFoodMesh.position.x += rx * 0.3;
-        cookingFoodMesh.position.z += ry * 0.3;
-      }
-      cookingRightStickPrev = true;
-    } else {
-      cookingRightStickPrev = false;
     }
     // Serve when the food reaches the customer
     if (cookingFoodMesh && cookingCustomer && cookingCustomerActive) {
       var d = cookingFoodMesh.position.distanceTo(cookingCustomer.position);
-      if (d < 2.2) serveCookFood(sceneTarget);
+      if (d < 2.0) serveCookFood(sceneTarget);
     }
     return;
   }
@@ -1169,6 +1170,15 @@ function handleCookingRightStick(sceneTarget) {
     cookingRightStickAction(sceneTarget);
   } else if (Math.abs(rx) < 0.15 && Math.abs(ry) < 0.15) {
     cookingRightStickPrev = false;
+  }
+}
+
+
+function resetCookStations() {
+  for (var i = 0; i < cookStations.length; i++) {
+    var st = cookStations[i];
+    st.picked = false;
+    if (st.mesh) st.mesh.visible = true;
   }
 }
 
@@ -1183,6 +1193,8 @@ function serveCookFood(sceneTarget) {
   cookingState = 'collect';
   cookingSelected = [];
   if (cookingFoodMesh) { sceneTarget.remove(cookingFoodMesh); cookingFoodMesh = null; }
+  cookingFoodMesh = null;
+  resetCookStations();
   cookPreviewDirty = true;
   updateCookPreview(sceneTarget);
   setHudText('Спасибо! +100. Готовь следующий.');
@@ -1232,6 +1244,8 @@ function updateCookingWorld(sceneTarget, dt) {
     setHudText('Собрано: ' + cookingSelected.length + ' ингр. Нажми ГОТОВО');
   }
 }
+
+function setHudText(text) {
   var lh = document.getElementById('left-hud');
   var rh = document.getElementById('right-hud');
   var ph = document.getElementById('pc-hud');
@@ -1387,6 +1401,12 @@ function updateHUD() {
     }
   } else if (currentActiveGame === 'space') {
     setHudText('Космос: правый стик — гравитация вкл/выкл');
+  } else if (currentActiveGame === 'cooking') {
+    if (cookingState === 'collect') {
+      setHudText('Собери бургер: подойди к ингредиенту и нажми правый стик. Кнопка ГОТОВО справа.');
+    } else if (cookingState === 'serve') {
+      setHudText('Неси бургер клиенту!');
+    }
   }
 }
 
@@ -1550,6 +1570,11 @@ function updatePhysics(dt) {
     playerPos.y += playerVelY * dt;
     if (playerPos.y < 1.5) { playerPos.y = 1.5; playerVelY = 0; }
     if (playerPos.y > 25) { playerPos.y = 25; playerVelY = 0; }
+  } else if (currentActiveGame === 'cooking') {
+    // Keep player grounded at eye height in the kitchen
+    playerPos.y = 1.7;
+    playerVelY = 0;
+    isGrounded = true;
   }
 
   if (sessionRef && (pcStreamActive || isPlaying) && !posSameAsWritten(playerPos.x, playerPos.y, playerPos.z, 0.05)) {
@@ -1681,7 +1706,7 @@ function animatePC() {
   handleRightStick();
   updatePhysics(0.016);
 
-  if (pcStreamActive || currentActiveGame === 'run') {
+  if (pcStreamActive || currentActiveGame === 'run' || currentActiveGame === 'cooking') {
     pcCamera.position.copy(playerPos);
     pcCamera.quaternion.copy(currentQuaternion);
   } else {
