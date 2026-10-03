@@ -145,6 +145,7 @@ let collectedSet = [];
 let totalCollectibles = 0;
 let collectedCount = 0;
 let spaceGravity = false;
+let rightStickPrev = false;
 
 function posSameAsWritten(x, y, z, eps) {
   if (eps === undefined) eps = 0.05;
@@ -680,7 +681,7 @@ function updateHUD() {
       }
     }
   } else if (currentActiveGame === 'space') {
-    setHudText('Космос: A — вверх, B — вниз');
+    setHudText('Космос: правый стик — гравитация вкл/выкл');
   }
 }
 
@@ -719,6 +720,76 @@ function getVerticalAxis() {
     }
   }
   return 0;
+}
+
+function getRightStick() {
+  var pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (var i = 0; i < pads.length; i++) {
+    var gp = pads[i];
+    if (gp && gp.connected) {
+      var rx = gp.axes[2] || 0;
+      var ry = gp.axes[3] || 0;
+      if (Math.abs(rx) < 0.25 && Math.abs(ry) < 0.25) return false;
+      return true;
+    }
+  }
+  return false;
+}
+
+// Right stick = one action per press:
+//  - city/trials: jump
+//  - space: toggle gravity on/off
+//  - underwater: hold to swim up
+function handleRightStick() {
+  var active = getRightStick();
+  if (active && !rightStickPrev) {
+    if (currentActiveGame === 'space') {
+      spaceGravity = !spaceGravity;
+      setHudText(spaceGravity ? 'Гравитация: ВКЛ' : 'Гравитация: ВЫКЛ');
+      setTimeout(function() { updateHUD(); }, 1500);
+    } else if (currentActiveGame !== 'underwater') {
+      if (isGrounded) {
+        playerVelY = 9;
+        isGrounded = false;
+      }
+    }
+  }
+  rightStickPrev = active;
+}
+
+// Jump physics, space gravity and underwater swimming share this per-frame step.
+function updatePhysics(dt) {
+  if (currentActiveGame === 'trials' || currentActiveGame === 'city' || currentActiveGame === 'cityquest') {
+    if (!isGrounded) {
+      playerVelY -= 22 * dt;
+      playerPos.y += playerVelY * dt;
+      if (playerPos.y <= 1.7) {
+        playerPos.y = 1.7;
+        playerVelY = 0;
+        isGrounded = true;
+      }
+    }
+  } else if (currentActiveGame === 'space') {
+    if (spaceGravity) {
+      playerVelY -= 20 * dt;
+      playerPos.y += playerVelY * dt;
+      if (playerPos.y <= 2) {
+        playerPos.y = 2;
+        playerVelY = 0;
+      }
+    }
+  } else if (currentActiveGame === 'underwater') {
+    if (getRightStick()) playerVelY = 6;
+    playerVelY -= 7 * dt;
+    playerPos.y += playerVelY * dt;
+    if (playerPos.y < 1.5) { playerPos.y = 1.5; playerVelY = 0; }
+    if (playerPos.y > 25) { playerPos.y = 25; playerVelY = 0; }
+  }
+
+  if (sessionRef && (pcStreamActive || isPlaying) && !posSameAsWritten(playerPos.x, playerPos.y, playerPos.z, 0.05)) {
+    lastWrittenPos = { x: playerPos.x, y: playerPos.y, z: playerPos.z };
+    sessionRef.update({ pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z } });
+  }
 }
 
 function initPCStreamScene() {
@@ -788,12 +859,6 @@ function applyMoveToPlayer(stickX, stickY) {
   move.addScaledVector(right, stickX);
   move.normalize().multiplyScalar(gamepadMoveSpeed * 0.016);
 
-  // In space the player floats: A/B buttons move up/down.
-  if (currentActiveGame === 'space') {
-    var vy = getVerticalAxis();
-    move.y += vy * 16 * 0.016;
-  }
-
   if (currentActiveGame === 'trials' && mazeWalls.length) {
     var tryX = playerPos.x + move.x;
     var tryZ = playerPos.z + move.z;
@@ -818,6 +883,8 @@ function animatePC() {
   if (!pcRenderer || !pcCamera) return;
 
   updateGamepadMovement();
+  handleRightStick();
+  updatePhysics(0.016);
 
   if (pcStreamActive) {
     pcCamera.position.copy(playerPos);
@@ -948,6 +1015,8 @@ function animateVR() {
     applyMoveToPlayer(joy.x, joy.y);
   }
 
+  handleRightStick();
+  updatePhysics(0.016);
   updateWorld(0.016);
   updateHUD();
 
