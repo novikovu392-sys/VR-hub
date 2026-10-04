@@ -41,17 +41,17 @@
 <div id="ui-layer">
   <div id="step-role">
     <h1>Sunflower VR Hub</h1>
-    <p>почемуР’С‹Р±РµСЂРёС‚Рµ С‚РёРї СѓСЃС‚СЂРѕР№СЃС‚РІР° РґР»СЏ РїРѕРґРєР»СЋС‡РµРЅРёСЏ.</p>
-    <button class="btn" onclick="selectRole('pc')">РљРѕРјРїСЊСЋС‚РµСЂ (РџРљ)</button><br>
-    <button class="btn btn-sec" onclick="selectRole('phone')">РўРµР»РµС„РѕРЅ (VR Cardboard)</button>
+    <p>Выберите тип устройства для подключения.</p>
+    <button class="btn" onclick="selectRole('pc')">Компьютер (ПК)</button><br>
+    <button class="btn btn-sec" onclick="selectRole('phone')">Телефон (VR Cardboard)</button>
   </div>
 
   <div id="step-phone-wait" style="display:none;">
-    <h1>РћР¶РёРґР°РЅРёРµ РёРіСЂС‹</h1>
-    <p>Р’РІРµРґРёС‚Рµ 4-Р·РЅР°С‡РЅС‹Р№ РєРѕРґ СЃ СЌРєСЂР°РЅР° РџРљ:</p>
+    <h1>Ожидание игры</h1>
+    <p>Введите 4-значный код с экрана ПК:</p>
     <input type="text" id="joinCodeInput" maxlength="4" placeholder="0000"><br>
-    <button class="btn" onclick="joinSession()">РџРѕРґРєР»СЋС‡РёС‚СЊСЃСЏ</button>
-    <button class="btn btn-sec" onclick="phoneGoFullscreen()" id="phoneFsBtn">РџРѕР»РЅС‹Р№ СЌРєСЂР°РЅ</button>
+    <button class="btn" onclick="joinSession()">Подключиться</button>
+    <button class="btn btn-sec" onclick="phoneGoFullscreen()" id="phoneFsBtn">Полный экран</button>
     <p id="phone-status" style="margin-top:15px; color:#f1c40f;"></p>
   </div>
 </div>
@@ -59,62 +59,62 @@
 <div id="pc-panel" style="display:none;">
   <div class="top-bar">
     <div class="left">
-      <h2 style="margin:0; color:#f1c40f;">Sunflower VR Hub вЂ” РџР°РЅРµР»СЊ РџРљ</h2>
-      <p style="margin:5px 0 0 0; color:#f1c40f; font-size:16px;" id="pc-code-display">РљРѕРґ: ----</p>
+      <h2 style="margin:0; color:#f1c40f;">Sunflower VR Hub — Панель ПК</h2>
+      <p style="margin:5px 0 0 0; color:#f1c40f; font-size:16px;" id="pc-code-display">Код: ----</p>
     </div>
     <div class="right">
-      <button class="btn btn-sec" onclick="toggleFullscreenCurrent()">РџРѕР»РЅС‹Р№ СЌРєСЂР°РЅ (РџРљ)</button>
-      <button class="btn btn-danger" onclick="exitGameFromPC()" id="pcExitBtn">Р’С‹Р№С‚Рё РёР· РёРіСЂС‹</button>
+      <button class="btn btn-sec" onclick="toggleFullscreenCurrent()">Полный экран (ПК)</button>
+      <button class="btn btn-danger" onclick="exitGameFromPC()" id="pcExitBtn">Выйти из игры</button>
     </div>
   </div>
   <div class="main-content">
     <div class="sidebar">
-      <h3 style="margin:0; color:#f1c40f;">Р”РѕСЃС‚СѓРїРЅС‹Рµ РёРіСЂС‹</h3>
+      <h3 style="margin:0; color:#f1c40f;">Доступные игры</h3>
       <div class="game-card">
-        <h3>Р“РѕСЂРѕРґ VR</h3>
-        <p>РЎРёРЅС…СЂРѕРЅРЅС‹Р№ РјРµРіР°РїРѕР»РёСЃ СЃРѕ СЃС‚Р°С†РёРѕРЅР°СЂРЅС‹РјРё РґРѕРјР°РјРё.</p>
-        <button class="btn" onclick="launchGame('city')">Р—Р°РїСѓСЃС‚РёС‚СЊ</button>
+        <h3>Город VR</h3>
+        <p>Синхронный мегаполис со стационарными домами.</p>
+        <button class="btn" onclick="launchGame('city')">Запустить</button>
       </div>
       <div class="game-card">
-        <h3>РСЃРїС‹С‚Р°РЅРёСЏ</h3>
-        <p>Р›Р°Р±РёСЂРёРЅС‚ СЃ С‡РµРєРїРѕРёРЅС‚Р°РјРё. РќР°Р№РґРё Р·РѕР»РѕС‚РѕР№ СЃС‚РѕР»Р± РЅР° РІС‹С…РѕРґРµ.</p>
-        <button class="btn" onclick="launchGame('trials')">Р—Р°РїСѓСЃС‚РёС‚СЊ</button>
+        <h3>Испытания</h3>
+        <p>Лабиринт с чекпоинтами. Найди золотой столб на выходе.</p>
+        <button class="btn" onclick="launchGame('trials')">Запустить</button>
       </div>
       <div class="game-card">
-        <h3>РљРѕСЃРјРѕСЃ</h3>
-        <p>РџРѕР»С‘С‚ РјРµР¶РґСѓ РїР»Р°РЅРµС‚Р°РјРё. РљРЅРѕРїРєР° A вЂ” РіСЂР°РІРёС‚Р°С†РёСЏ РІРєР»/РІС‹РєР».</p>
-        <button class="btn" onclick="launchGame('space')">Р—Р°РїСѓСЃС‚РёС‚СЊ</button>
+        <h3>Космос</h3>
+        <p>Полёт между планетами. Кнопка A — гравитация вкл/выкл.</p>
+        <button class="btn" onclick="launchGame('space')">Запустить</button>
       </div>
       <div class="game-card">
-        <h3>РџРѕРґРІРѕРґРЅС‹Р№ РјРёСЂ</h3>
-        <p>РЎРѕР±РµСЂРё РІСЃРµ СЃРІРµС‚СЏС‰РёРµСЃСЏ СЃРѕРєСЂРѕРІРёС‰Р° СЃСЂРµРґРё СЂС‹Р±РѕРє.</p>
-        <button class="btn" onclick="launchGame('underwater')">Р—Р°РїСѓСЃС‚РёС‚СЊ</button>
+        <h3>Подводный мир</h3>
+        <p>Собери все светящиеся сокровища среди рыбок.</p>
+        <button class="btn" onclick="launchGame('underwater')">Запустить</button>
       </div>
       <div class="game-card">
-        <h3>Р“РѕСЂРѕРґ: РєРІРµСЃС‚С‹</h3>
-        <p>РќР°Р№РґРё РІСЃРµ Р·РµР»С‘РЅС‹Рµ РєРѕР»СЊС†Р° РїРѕ РіРѕСЂРѕРґСѓ.</p>
-        <button class="btn" onclick="launchGame('cityquest')">Р—Р°РїСѓСЃС‚РёС‚СЊ</button>
+        <h3>Город: квесты</h3>
+        <p>Найди все зелёные кольца по городу.</p>
+        <button class="btn" onclick="launchGame('cityquest')">Запустить</button>
       </div>
       <div class="game-card">
-        <h3>РџР°СЂРєСѓСЂ РїРѕ РєСЂС‹С€Р°Рј</h3>
-        <p>РџСЂС‹РіР°Р№ РјРµР¶РґСѓ РєСЂС‹С€Р°РјРё. РџСЂР°РІС‹Р№ СЃС‚РёРє вЂ” РїСЂС‹Р¶РѕРє.</p>
-        <button class="btn" onclick="launchGame('roofrun')">Р—Р°РїСѓСЃС‚РёС‚СЊ</button>
+        <h3>Паркур по крышам</h3>
+        <p>Прыгай между крышами. Правый стик — прыжок.</p>
+        <button class="btn" onclick="launchGame('roofrun')">Запустить</button>
       </div>
       <div class="game-card">
-        <h3>Р—РѕРјР±Рё РІС‹Р¶РёРІР°РЅРёРµ</h3>
-        <p>РћС‚Р±РёРІР°Р№СЃСЏ РѕС‚ Р·РѕРјР±Рё, РїСЂР°РІС‹Р№ СЃС‚РёРє вЂ” СЃС‚СЂРµР»СЊР±Р°.</p>
-        <button class="btn" onclick="launchGame('zombie')">Р—Р°РїСѓСЃС‚РёС‚СЊ</button>
+        <h3>Зомби выживание</h3>
+        <p>Отбивайся от зомби, правый стик — стрельба.</p>
+        <button class="btn" onclick="launchGame('zombie')">Запустить</button>
       </div>
       <div class="game-card">
-        <h3>РЎРёРјСѓР»СЏС‚РѕСЂ РіРѕС‚РѕРІРєРё</h3>
-        <p>РЎРѕР±РµСЂРё Р±СѓСЂРіРµСЂ, РїРѕСЃРјРѕС‚СЂРё РЅР° РєРЅРѕРїРєСѓ Р“РћРўРћР’Рћ Рё РЅР°Р¶РјРё РїСЂР°РІС‹Р№ СЃС‚РёРє. РќРµСЃРё РµРґСѓ РєР»РёРµРЅС‚Сѓ.</p>
-        <button class="btn" onclick="launchGame('cooking')">Р—Р°РїСѓСЃС‚РёС‚СЊ</button>
+        <h3>Симулятор готовки</h3>
+        <p>Собери бургер, посмотри на кнопку ГОТОВО и нажми правый стик. Неси еду клиенту.</p>
+        <button class="btn" onclick="launchGame('cooking')">Запустить</button>
       </div>
       
       <div class="game-card">
-        <h3>Р‘РµРіРё</h3>
-        <p>Р‘РµСЃРєРѕРЅРµС‡РЅР°СЏ РґРѕСЂРѕРіР°. Р›РµРІС‹Р№ СЃС‚РёРє вЂ” РїРѕРІРѕСЂРѕС‚.</p>
-        <button class="btn" onclick="launchGame('run')">Р—Р°РїСѓСЃС‚РёС‚СЊ</button>
+        <h3>Беги</h3>
+        <p>Бесконечная дорога. Левый стик — поворот.</p>
+        <button class="btn" onclick="launchGame('run')">Запустить</button>
       </div>
     </div>
     <div id="pc-view-container"><div id="pc-hud"></div></div>
@@ -125,9 +125,9 @@
   <div id="left-view"><div class="vr-hud" id="left-hud"></div></div>
   <div id="right-view"><div class="vr-hud" id="right-hud"></div></div>
   <div id="fs-prompt" style="display:none; position:absolute; top:0; left:0; right:0; bottom:0; z-index:300; background:rgba(0,0,0,0.75); align-items:center; justify-content:center; flex-direction:column;">
-    <p style="color:#f1c40f; margin-bottom:16px;">РџРѕР»РЅС‹Р№ СЌРєСЂР°РЅ РЅР° С‚РµР»РµС„РѕРЅРµ</p>
-    <button class="btn" onclick="phoneGoFullscreen()">РџРѕР»РЅС‹Р№ СЌРєСЂР°РЅ</button>
-    <button class="btn btn-sec" onclick="hidePhoneFullscreenPrompt()" style="margin-top:8px;">РћС‚РјРµРЅР°</button>
+    <p style="color:#f1c40f; margin-bottom:16px;">Полный экран на телефоне</p>
+    <button class="btn" onclick="phoneGoFullscreen()">Полный экран</button>
+    <button class="btn btn-sec" onclick="hidePhoneFullscreenPrompt()" style="margin-top:8px;">Отмена</button>
   </div>
 </div>
 
@@ -230,7 +230,7 @@ function selectRole(r) {
   role = r;
   if (role === 'pc') {
     sessionCode = Math.floor(1000 + Math.random() * 9000).toString();
-    document.getElementById('pc-code-display').innerText = 'РљРѕРґ: ' + sessionCode;
+    document.getElementById('pc-code-display').innerText = 'Код: ' + sessionCode;
     document.getElementById('ui-layer').style.display = 'none';
     document.getElementById('pc-panel').style.display = 'flex';
 
@@ -271,7 +271,7 @@ function selectRole(r) {
 function joinSession() {
   const code = document.getElementById('joinCodeInput').value.trim();
   if (code.length !== 4) {
-    document.getElementById('phone-status').innerText = 'Р’РІРµРґРёС‚Рµ 4 С†РёС„СЂС‹!';
+    document.getElementById('phone-status').innerText = 'Введите 4 цифры!';
     return;
   }
   sessionCode = code;
@@ -279,8 +279,8 @@ function joinSession() {
 
   sessionRef.once('value', (snapshot) => {
     if (snapshot.exists()) {
-      document.getElementById('phone-status').innerText = 'РџРѕРґРєР»СЋС‡РµРЅРѕ! РћР¶РёРґР°РЅРёРµ Р·Р°РїСѓСЃРєР°...';
-      document.getElementById('step-phone-wait').innerHTML = '<h1>РћР¶РёРґР°РЅРёРµ РёРіСЂС‹</h1><p>РЈСЃС‚СЂРѕР№СЃС‚РІРѕ РїРѕРґРєР»СЋС‡РµРЅРѕ. Р—Р°РїСѓСЃС‚РёС‚Рµ РёРіСЂСѓ РЅР° РџРљ.</p><br><button class="btn btn-sec" onclick="phoneGoFullscreen()">РџРѕР»РЅС‹Р№ СЌРєСЂР°РЅ</button>';
+      document.getElementById('phone-status').innerText = 'Подключено! Ожидание запуска...';
+      document.getElementById('step-phone-wait').innerHTML = '<h1>Ожидание игры</h1><p>Устройство подключено. Запустите игру на ПК.</p><br><button class="btn btn-sec" onclick="phoneGoFullscreen()">Полный экран</button>';
 
       sessionRef.on('value', (snap) => {
         const val = snap.val();
@@ -313,7 +313,7 @@ function joinSession() {
         }
       });
     } else {
-      document.getElementById('phone-status').innerText = 'РЎРµСЃСЃРёСЏ РЅРµ РЅР°Р№РґРµРЅР°!';
+      document.getElementById('phone-status').innerText = 'Сессия не найдена!';
     }
   });
 }
@@ -866,13 +866,13 @@ function buildRunEnvironment(sceneTarget) {
 }
 
 var COOK_INGREDIENTS = [
-  { id: 'cutlet', name: 'РљРѕС‚Р»РµС‚Р°', color: 0x8d5524 },
-  { id: 'bun', name: 'Р‘СѓР»РєР°', color: 0xe8c07a },
-  { id: 'salad', name: 'РЎР°Р»Р°С‚', color: 0x2ecc71 },
-  { id: 'cheese', name: 'РЎС‹СЂ', color: 0xf1c40f },
-  { id: 'ketchup', name: 'РљРµС‚С‡СѓРї', color: 0xe74c3c },
-  { id: 'mustard', name: 'Р“РѕСЂС‡РёС†Р°', color: 0xf5b041 },
-  { id: 'sesame', name: 'РљСѓРЅР¶СѓС‚', color: 0xfdfefe }
+  { id: 'cutlet', name: 'Котлета', color: 0x8d5524 },
+  { id: 'bun', name: 'Булка', color: 0xe8c07a },
+  { id: 'salad', name: 'Салат', color: 0x2ecc71 },
+  { id: 'cheese', name: 'Сыр', color: 0xf1c40f },
+  { id: 'ketchup', name: 'Кетчуп', color: 0xe74c3c },
+  { id: 'mustard', name: 'Горчица', color: 0xf5b041 },
+  { id: 'sesame', name: 'Кунжут', color: 0xfdfefe }
 ];
 
 function cookIngName(id) {
@@ -962,7 +962,7 @@ function buildCookingEnvironment(sceneTarget) {
   btn.position.set(22, 1.35, -3);
   sceneTarget.add(btn);
   cookDoneButton = btn;
-  var dl = makeLabel('Р“РћРўРћР’Рћ', 'rgba(39,174,96,0.8)', 54, 2.2);
+  var dl = makeLabel('ГОТОВО', 'rgba(39,174,96,0.8)', 54, 2.2);
   dl.position.set(22, 2.3, -3);
   sceneTarget.add(dl);
 
@@ -1021,7 +1021,7 @@ function buildCookOrderBoard(sceneTarget) {
   var board = new THREE.Mesh(new THREE.BoxGeometry(5.2, 3.2, 0.15), new THREE.MeshStandardMaterial({ color: 0x232323 }));
   board.position.set(0, 0, 0);
   grp.add(board);
-  var title = makeLabel('Р—РђРљРђР—', 'rgba(39,174,96,0.85)', 56, 3.0);
+  var title = makeLabel('ЗАКАЗ', 'rgba(39,174,96,0.85)', 56, 3.0);
   title.position.set(0, 1.1, 0.1);
   grp.add(title);
   var y = 0.4;
@@ -1032,7 +1032,7 @@ function buildCookOrderBoard(sceneTarget) {
   var countLabel = makeLabel(orderNames.join(' + '), null, 40, 4.4);
   countLabel.position.set(0, -0.2, 0.1);
   grp.add(countLabel);
-  var hint = makeLabel('СЃРѕР±РµСЂРё Рё РЅРµСЃРё', 'rgba(0,0,0,0.5)', 30, 3.4);
+  var hint = makeLabel('собери и неси', 'rgba(0,0,0,0.5)', 30, 3.4);
   hint.position.set(0, -1.1, 0.1);
   grp.add(hint);
   grp.position.set(0, 6.2, -13.7);
@@ -1129,7 +1129,7 @@ function cookingRightStickAction(sceneTarget) {
   if (cookGazeItem === 'done') {
     if (cookingSelected.length > 0) {
       cookingState = 'serve';
-      setHudText('РќРµСЃРё Р±СѓСЂРіРµСЂ РєР»РёРµРЅС‚Сѓ!');
+      setHudText('Неси бургер клиенту!');
     }
   } else if (cookGazeItem === 'customer') {
     if (cookingState === 'serve' && cookingFoodMesh) {
@@ -1144,7 +1144,7 @@ function cookingRightStickAction(sceneTarget) {
       cookingFoodMesh = null;
       cookPreviewDirty = true;
       updateCookPreview(sceneTarget);
-      setHudText('РЎРїР°СЃРёР±Рѕ! +100. Р“РѕС‚РѕРІСЊ СЃР»РµРґСѓСЋС‰РёР№.');
+      setHudText('Спасибо! +100. Готовь следующий.');
     }
   } else if (cookGazeItem === 'station') {
     if (cookingState === 'collect') {
@@ -1230,7 +1230,7 @@ function serveCookFood(sceneTarget) {
   resetCookStations();
   cookPreviewDirty = true;
   updateCookPreview(sceneTarget);
-  setHudText('РЎРїР°СЃРёР±Рѕ! +100. Р“РѕС‚РѕРІСЊ СЃР»РµРґСѓСЋС‰РёР№.');
+  setHudText('Спасибо! +100. Готовь следующий.');
 }
 
 function setCookingGazeTarget(sceneTarget) {
@@ -1274,7 +1274,7 @@ function updateCookingWorld(sceneTarget, dt) {
     cookDoneMat.emissive.set(cookGazeItem === 'done' ? 0x2ecc71 : 0x000000);
   }
   if (cookingSelected.length > 0 && cookingState === 'collect') {
-    setHudText('РЎРѕР±СЂР°РЅРѕ: ' + cookingSelected.length + ' РёРЅРіСЂ. РќР°Р¶РјРё Р“РћРўРћР’Рћ');
+    setHudText('Собрано: ' + cookingSelected.length + ' ингр. Нажми ГОТОВО');
   }
 }
 
@@ -1396,7 +1396,7 @@ function checkRoofRunProgress() {
   if (onRoof === -1) return;
   if (onRoof > lastRoofIndex) {
     lastRoofIndex = onRoof;
-    setHudText('РљСЂС‹С€Р°: ' + (onRoof + 1) + ' / ' + roofGroup.length);
+    setHudText('Крыша: ' + (onRoof + 1) + ' / ' + roofGroup.length);
   }
 }
 
@@ -1426,19 +1426,19 @@ function applyRoofCollision() {
 function updateHUD() {
   if (currentActiveGame === 'underwater' || currentActiveGame === 'cityquest' || currentActiveGame === 'roofrun') {
     if (!trialCompleted) {
-      setHudText('РњРѕРЅРµС‚С‹: ' + collectedCount + ' / ' + totalCollectibles);
+      setHudText('Монеты: ' + collectedCount + ' / ' + totalCollectibles);
       if (collectedCount >= totalCollectibles) {
         trialCompleted = true;
-        setHudText('РџРћР‘Р•Р”Рђ! Р’СЃС‘ СЃРѕР±СЂР°РЅРѕ');
+        setHudText('ПОБЕДА! Всё собрано');
       }
     }
   } else if (currentActiveGame === 'space') {
-    setHudText('РљРѕСЃРјРѕСЃ: РїСЂР°РІС‹Р№ СЃС‚РёРє вЂ” РіСЂР°РІРёС‚Р°С†РёСЏ РІРєР»/РІС‹РєР»');
+    setHudText('Космос: правый стик — гравитация вкл/выкл');
   } else if (currentActiveGame === 'cooking') {
     if (cookingState === 'collect') {
-      setHudText('РЎРѕР±РµСЂРё Р±СѓСЂРіРµСЂ: РїРѕРґРѕР№РґРё Рє РёРЅРіСЂРµРґРёРµРЅС‚Сѓ Рё РЅР°Р¶РјРё РїСЂР°РІС‹Р№ СЃС‚РёРє. РљРЅРѕРїРєР° Р“РћРўРћР’Рћ СЃРїСЂР°РІР°.');
+      setHudText('Собери бургер: подойди к ингредиенту и нажми правый стик. Кнопка ГОТОВО справа.');
     } else if (cookingState === 'serve') {
-      setHudText('РќРµСЃРё Р±СѓСЂРіРµСЂ РєР»РёРµРЅС‚Сѓ!');
+      setHudText('Неси бургер клиенту!');
     }
   }
 }
@@ -1539,7 +1539,7 @@ function handleRightStick() {
       }
     } else if (currentActiveGame === 'space') {
       spaceGravity = !spaceGravity;
-      setHudText(spaceGravity ? 'Р“СЂР°РІРёС‚Р°С†РёСЏ: Р’РљР›' : 'Р“СЂР°РІРёС‚Р°С†РёСЏ: Р’Р«РљР›');
+      setHudText(spaceGravity ? 'Гравитация: ВКЛ' : 'Гравитация: ВЫКЛ');
       setTimeout(function() { updateHUD(); }, 1500);
     } else if (currentActiveGame !== 'underwater') {
       if (isGrounded) {
@@ -1787,7 +1787,7 @@ function stopVRGameEngine() {
   document.getElementById('ui-layer').style.display = 'flex';
   document.getElementById('step-role').style.display = 'none';
   document.getElementById('step-phone-wait').style.display = 'block';
-  document.getElementById('step-phone-wait').innerHTML = '<h1>РћР¶РёРґР°РЅРёРµ РёРіСЂС‹</h1><p>РРіСЂР° Р·Р°РІРµСЂС€РµРЅР° РЅР° РџРљ. Р’С‹Р±РµСЂРёС‚Рµ РґСЂСѓРіСѓСЋ РёРіСЂСѓ.</p><br><button class="btn btn-sec" onclick="phoneGoFullscreen()">РџРѕР»РЅС‹Р№ СЌРєСЂР°РЅ</button>';
+  document.getElementById('step-phone-wait').innerHTML = '<h1>Ожидание игры</h1><p>Игра завершена на ПК. Выберите другую игру.</p><br><button class="btn btn-sec" onclick="phoneGoFullscreen()">Полный экран</button>';
 }
 
 function initVR3D() {
