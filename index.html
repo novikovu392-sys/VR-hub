@@ -41,17 +41,17 @@
 <div id="ui-layer">
   <div id="step-role">
     <h1>Sunflower VR Hub</h1>
-    <p>Выберите тип устройства для подключения.</p>
-    <button class="btn" onclick="selectRole('pc')">Компьютер (ПК)</button><br>
-    <button class="btn btn-sec" onclick="selectRole('phone')">Телефон (VR Cardboard)</button>
+    <p>Р’С‹Р±РµСЂРёС‚Рµ С‚РёРї СѓСЃС‚СЂРѕР№СЃС‚РІР° РґР»СЏ РїРѕРґРєР»СЋС‡РµРЅРёСЏ.</p>
+    <button class="btn" onclick="selectRole('pc')">РљРѕРјРїСЊСЋС‚РµСЂ (РџРљ)</button><br>
+    <button class="btn btn-sec" onclick="selectRole('phone')">РўРµР»РµС„РѕРЅ (VR Cardboard)</button>
   </div>
 
   <div id="step-phone-wait" style="display:none;">
-    <h1>Ожидание игры</h1>
-    <p>Введите 4-значный код с экрана ПК:</p>
+    <h1>РћР¶РёРґР°РЅРёРµ РёРіСЂС‹</h1>
+    <p>Р’РІРµРґРёС‚Рµ 4-Р·РЅР°С‡РЅС‹Р№ РєРѕРґ СЃ СЌРєСЂР°РЅР° РџРљ:</p>
     <input type="text" id="joinCodeInput" maxlength="4" placeholder="0000"><br>
-    <button class="btn" onclick="joinSession()">Подключиться</button>
-    <button class="btn btn-sec" onclick="phoneGoFullscreen()" id="phoneFsBtn">Полный экран</button>
+    <button class="btn" onclick="joinSession()">РџРѕРґРєР»СЋС‡РёС‚СЊСЃСЏ</button>
+    <button class="btn btn-sec" onclick="phoneGoFullscreen()" id="phoneFsBtn">РџРѕР»РЅС‹Р№ СЌРєСЂР°РЅ</button>
     <p id="phone-status" style="margin-top:15px; color:#f1c40f;"></p>
   </div>
 </div>
@@ -59,51 +59,62 @@
 <div id="pc-panel" style="display:none;">
   <div class="top-bar">
     <div class="left">
-      <h2 style="margin:0; color:#f1c40f;">Sunflower VR Hub — Панель ПК</h2>
-      <p style="margin:5px 0 0 0; color:#f1c40f; font-size:16px;" id="pc-code-display">Код: ----</p>
+      <h2 style="margin:0; color:#f1c40f;">Sunflower VR Hub вЂ” РџР°РЅРµР»СЊ РџРљ</h2>
+      <p style="margin:5px 0 0 0; color:#f1c40f; font-size:16px;" id="pc-code-display">РљРѕРґ: ----</p>
     </div>
     <div class="right">
-      <button class="btn btn-sec" onclick="toggleFullscreenCurrent()">Полный экран (ПК)</button>
-      <button class="btn btn-danger" onclick="exitGameFromPC()" id="pcExitBtn">Выйти из игры</button>
+      <button class="btn btn-sec" onclick="toggleFullscreenCurrent()">РџРѕР»РЅС‹Р№ СЌРєСЂР°РЅ (РџРљ)</button>
+      <button class="btn btn-danger" onclick="exitGameFromPC()" id="pcExitBtn">Р’С‹Р№С‚Рё РёР· РёРіСЂС‹</button>
     </div>
   </div>
   <div class="main-content">
     <div class="sidebar">
-      <h3 style="margin:0; color:#f1c40f;">Доступные игры</h3>
+      <h3 style="margin:0; color:#f1c40f;">Р”РѕСЃС‚СѓРїРЅС‹Рµ РёРіСЂС‹</h3>
       <div class="game-card">
-        <h3>Город VR</h3>
-        <p>Синхронный мегаполис со стационарными домами.</p>
-        <button class="btn" onclick="launchGame('city')">Запустить</button>
+        <h3>Р“РѕСЂРѕРґ VR</h3>
+        <p>РЎРёРЅС…СЂРѕРЅРЅС‹Р№ РјРµРіР°РїРѕР»РёСЃ СЃРѕ СЃС‚Р°С†РёРѕРЅР°СЂРЅС‹РјРё РґРѕРјР°РјРё.</p>
+        <button class="btn" onclick="launchGame('city')">Р—Р°РїСѓСЃС‚РёС‚СЊ</button>
       </div>
       <div class="game-card">
-        <h3>Испытания</h3>
-        <p>Лабиринт с чекпоинтами. Найди золотой столб на выходе.</p>
-        <button class="btn" onclick="launchGame('trials')">Запустить</button>
+        <h3>РСЃРїС‹С‚Р°РЅРёСЏ</h3>
+        <p>Р›Р°Р±РёСЂРёРЅС‚ СЃ С‡РµРєРїРѕРёРЅС‚Р°РјРё. РќР°Р№РґРё Р·РѕР»РѕС‚РѕР№ СЃС‚РѕР»Р± РЅР° РІС‹С…РѕРґРµ.</p>
+        <button class="btn" onclick="launchGame('trials')">Р—Р°РїСѓСЃС‚РёС‚СЊ</button>
       </div>
       <div class="game-card">
-        <h3>Космос</h3>
-        <p>Полёт между планетами. Кнопка A — гравитация вкл/выкл.</p>
-        <button class="btn" onclick="launchGame('space')">Запустить</button>
+        <h3>РљРѕСЃРјРѕСЃ</h3>
+        <p>РџРѕР»С‘С‚ РјРµР¶РґСѓ РїР»Р°РЅРµС‚Р°РјРё. РљРЅРѕРїРєР° A вЂ” РіСЂР°РІРёС‚Р°С†РёСЏ РІРєР»/РІС‹РєР».</p>
+        <button class="btn" onclick="launchGame('space')">Р—Р°РїСѓСЃС‚РёС‚СЊ</button>
       </div>
       <div class="game-card">
-        <h3>Подводный мир</h3>
-        <p>Собери все светящиеся сокровища среди рыбок.</p>
-        <button class="btn" onclick="launchGame('underwater')">Запустить</button>
+        <h3>РџРѕРґРІРѕРґРЅС‹Р№ РјРёСЂ</h3>
+        <p>РЎРѕР±РµСЂРё РІСЃРµ СЃРІРµС‚СЏС‰РёРµСЃСЏ СЃРѕРєСЂРѕРІРёС‰Р° СЃСЂРµРґРё СЂС‹Р±РѕРє.</p>
+        <button class="btn" onclick="launchGame('underwater')">Р—Р°РїСѓСЃС‚РёС‚СЊ</button>
       </div>
       <div class="game-card">
-        <h3>Город: квесты</h3>
-        <p>Найди все зелёные кольца по городу.</p>
-        <button class="btn" onclick="launchGame('cityquest')">Запустить</button>
+        <h3>Р“РѕСЂРѕРґ: РєРІРµСЃС‚С‹</h3>
+        <p>РќР°Р№РґРё РІСЃРµ Р·РµР»С‘РЅС‹Рµ РєРѕР»СЊС†Р° РїРѕ РіРѕСЂРѕРґСѓ.</p>
+        <button class="btn" onclick="launchGame('cityquest')">Р—Р°РїСѓСЃС‚РёС‚СЊ</button>
       </div>
       <div class="game-card">
-        <h3>Паркур по крышам</h3>
-        <p>Прыгай между крышами. Правый стик — прыжок.</p>
-        <button class="btn" onclick="launchGame('roofrun')">Запустить</button>
+        <h3>РџР°СЂРєСѓСЂ РїРѕ РєСЂС‹С€Р°Рј</h3>
+        <p>РџСЂС‹РіР°Р№ РјРµР¶РґСѓ РєСЂС‹С€Р°РјРё. РџСЂР°РІС‹Р№ СЃС‚РёРє вЂ” РїСЂС‹Р¶РѕРє.</p>
+        <button class="btn" onclick="launchGame('roofrun')">Р—Р°РїСѓСЃС‚РёС‚СЊ</button>
       </div>
       <div class="game-card">
-        <h3>Зомби выживание</h3>
-        <p>Отбивайся от зомби, правый стик — стрельба.</p>
-        <button class="btn" onclick="launchGame('zombie')">Запустить</button>
+        <h3>Р—РѕРјР±Рё РІС‹Р¶РёРІР°РЅРёРµ</h3>
+        <p>РћС‚Р±РёРІР°Р№СЃСЏ РѕС‚ Р·РѕРјР±Рё, РїСЂР°РІС‹Р№ СЃС‚РёРє вЂ” СЃС‚СЂРµР»СЊР±Р°.</p>
+        <button class="btn" onclick="launchGame('zombie')">Р—Р°РїСѓСЃС‚РёС‚СЊ</button>
+      </div>
+      <div class="game-card">
+        <h3>РЎРёРјСѓР»СЏС‚РѕСЂ РіРѕС‚РѕРІРєРё</h3>
+        <p>РЎРѕР±РµСЂРё Р±СѓСЂРіРµСЂ, РїРѕСЃРјРѕС‚СЂРё РЅР° РєРЅРѕРїРєСѓ Р“РћРўРћР’Рћ Рё РЅР°Р¶РјРё РїСЂР°РІС‹Р№ СЃС‚РёРє. РќРµСЃРё РµРґСѓ РєР»РёРµРЅС‚Сѓ.</p>
+        <button class="btn" onclick="launchGame('cooking')">Р—Р°РїСѓСЃС‚РёС‚СЊ</button>
+      </div>
+      
+      <div class="game-card">
+        <h3>Р‘РµРіРё</h3>
+        <p>Р‘РµСЃРєРѕРЅРµС‡РЅР°СЏ РґРѕСЂРѕРіР°. Р›РµРІС‹Р№ СЃС‚РёРє вЂ” РїРѕРІРѕСЂРѕС‚.</p>
+        <button class="btn" onclick="launchGame('run')">Р—Р°РїСѓСЃС‚РёС‚СЊ</button>
       </div>
     </div>
     <div id="pc-view-container"><div id="pc-hud"></div></div>
@@ -114,9 +125,9 @@
   <div id="left-view"><div class="vr-hud" id="left-hud"></div></div>
   <div id="right-view"><div class="vr-hud" id="right-hud"></div></div>
   <div id="fs-prompt" style="display:none; position:absolute; top:0; left:0; right:0; bottom:0; z-index:300; background:rgba(0,0,0,0.75); align-items:center; justify-content:center; flex-direction:column;">
-    <p style="color:#f1c40f; margin-bottom:16px;">Полный экран на телефоне</p>
-    <button class="btn" onclick="phoneGoFullscreen()">Полный экран</button>
-    <button class="btn btn-sec" onclick="hidePhoneFullscreenPrompt()" style="margin-top:8px;">Отмена</button>
+    <p style="color:#f1c40f; margin-bottom:16px;">РџРѕР»РЅС‹Р№ СЌРєСЂР°РЅ РЅР° С‚РµР»РµС„РѕРЅРµ</p>
+    <button class="btn" onclick="phoneGoFullscreen()">РџРѕР»РЅС‹Р№ СЌРєСЂР°РЅ</button>
+    <button class="btn btn-sec" onclick="hidePhoneFullscreenPrompt()" style="margin-top:8px;">РћС‚РјРµРЅР°</button>
   </div>
 </div>
 
@@ -168,6 +179,26 @@ let lastRoofIndex = -1;
 let zombies = [];
 let bullets = [];
 let lastShotTime = 0;
+let runSegments = [];
+let runSpeed = 22;
+let runOffsetX = 0;
+var cookingState = 'collect';
+var cookingSelected = [];
+var cookingScore = 0;
+var cookingServeCount = 0;
+var cookingFoodMesh = null;
+var cookStations = [];
+var cookDoneButton = null;
+var cookDoneMat = null;
+var cookGazeItem = null;
+var cookingCustomer = null;
+var cookingCustomerOrder = [];
+var cookingCustomerActive = false;
+var cookingCustomerMode = 'idle';
+var cookingRespawnTimer = 0;
+var cookPreviewGroup = null;
+var cookPreviewDirty = false;
+var cookOrderBoardGroup = null;
 
 function posSameAsWritten(x, y, z, eps) {
   if (eps === undefined) eps = 0.05;
@@ -199,7 +230,7 @@ function selectRole(r) {
   role = r;
   if (role === 'pc') {
     sessionCode = Math.floor(1000 + Math.random() * 9000).toString();
-    document.getElementById('pc-code-display').innerText = 'Код: ' + sessionCode;
+    document.getElementById('pc-code-display').innerText = 'РљРѕРґ: ' + sessionCode;
     document.getElementById('ui-layer').style.display = 'none';
     document.getElementById('pc-panel').style.display = 'flex';
 
@@ -240,7 +271,7 @@ function selectRole(r) {
 function joinSession() {
   const code = document.getElementById('joinCodeInput').value.trim();
   if (code.length !== 4) {
-    document.getElementById('phone-status').innerText = 'Введите 4 цифры!';
+    document.getElementById('phone-status').innerText = 'Р’РІРµРґРёС‚Рµ 4 С†РёС„СЂС‹!';
     return;
   }
   sessionCode = code;
@@ -248,8 +279,8 @@ function joinSession() {
 
   sessionRef.once('value', (snapshot) => {
     if (snapshot.exists()) {
-      document.getElementById('phone-status').innerText = 'Подключено! Ожидание запуска...';
-      document.getElementById('step-phone-wait').innerHTML = '<h1>Ожидание игры</h1><p>Устройство подключено. Запустите игру на ПК.</p><br><button class="btn btn-sec" onclick="phoneGoFullscreen()">Полный экран</button>';
+      document.getElementById('phone-status').innerText = 'РџРѕРґРєР»СЋС‡РµРЅРѕ! РћР¶РёРґР°РЅРёРµ Р·Р°РїСѓСЃРєР°...';
+      document.getElementById('step-phone-wait').innerHTML = '<h1>РћР¶РёРґР°РЅРёРµ РёРіСЂС‹</h1><p>РЈСЃС‚СЂРѕР№СЃС‚РІРѕ РїРѕРґРєР»СЋС‡РµРЅРѕ. Р—Р°РїСѓСЃС‚РёС‚Рµ РёРіСЂСѓ РЅР° РџРљ.</p><br><button class="btn btn-sec" onclick="phoneGoFullscreen()">РџРѕР»РЅС‹Р№ СЌРєСЂР°РЅ</button>';
 
       sessionRef.on('value', (snap) => {
         const val = snap.val();
@@ -282,7 +313,7 @@ function joinSession() {
         }
       });
     } else {
-      document.getElementById('phone-status').innerText = 'Сессия не найдена!';
+      document.getElementById('phone-status').innerText = 'РЎРµСЃСЃРёСЏ РЅРµ РЅР°Р№РґРµРЅР°!';
     }
   });
 }
@@ -302,6 +333,14 @@ function launchGame(gameName) {
     spaceGravity = true;
   } else if (gameName === 'roofrun') {
     playerPos.set(0, 6, 20);
+    isGrounded = true;
+  } else if (gameName === 'run') {
+    playerPos.set(0, 1.7, 180);
+    isGrounded = true;
+    runSpeed = 22;
+    runOffsetX = 0;
+  } else if (gameName === 'cooking') {
+    playerPos.set(0, 1.7, 2);
     isGrounded = true;
   }
   if (role === 'pc') {
@@ -792,6 +831,453 @@ function buildRoofRunEnvironment(sceneTarget) {
   isGrounded = true;
 }
 
+function buildRunEnvironment(sceneTarget) {
+  sceneTarget.background = new THREE.Color(0x0a0a14);
+  sceneTarget.fog = new THREE.Fog(0x0a0a14, 60, 400);
+  sceneTarget.add(new THREE.AmbientLight(0xffffff, 0.7));
+  var sun = new THREE.DirectionalLight(0xffffff, 0.9);
+  sun.position.set(50, 200, 80);
+  sceneTarget.add(sun);
+
+  var ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 800), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+  ground.rotation.x = -Math.PI / 2;
+  sceneTarget.add(ground);
+
+  // initial road segments
+  runSegments = [];
+  for (var i = 0; i < 12; i++) {
+    var seg = new THREE.Mesh(
+      new THREE.PlaneGeometry(12, 70),
+      new THREE.MeshStandardMaterial({ color: 0x333333 })
+    );
+    seg.rotation.x = -Math.PI / 2;
+    seg.position.set(0, 0.02, -i * 65 + 200);
+    sceneTarget.add(seg);
+    runSegments.push(seg);
+  }
+
+  targetQuaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'YXZ'));
+  currentQuaternion.copy(targetQuaternion);
+  playerPos.set(0, 1.7, 180);
+  playerVelY = 0;
+  isGrounded = true;
+  runSpeed = 22;
+  runOffsetX = 0;
+}
+
+var COOK_INGREDIENTS = [
+  { id: 'cutlet', name: 'РљРѕС‚Р»РµС‚Р°', color: 0x8d5524 },
+  { id: 'bun', name: 'Р‘СѓР»РєР°', color: 0xe8c07a },
+  { id: 'salad', name: 'РЎР°Р»Р°С‚', color: 0x2ecc71 },
+  { id: 'cheese', name: 'РЎС‹СЂ', color: 0xf1c40f },
+  { id: 'ketchup', name: 'РљРµС‚С‡СѓРї', color: 0xe74c3c },
+  { id: 'mustard', name: 'Р“РѕСЂС‡РёС†Р°', color: 0xf5b041 },
+  { id: 'sesame', name: 'РљСѓРЅР¶СѓС‚', color: 0xfdfefe }
+];
+
+function cookIngName(id) {
+  for (var i = 0; i < COOK_INGREDIENTS.length; i++) if (COOK_INGREDIENTS[i].id === id) return COOK_INGREDIENTS[i].name;
+  return '?';
+}
+
+function makeLabel(text, bg, fontPx, scaleW) {
+  var c = document.createElement('canvas');
+  c.width = 1024; c.height = 192;
+  var ctx = c.getContext('2d');
+  ctx.fillStyle = bg || 'rgba(0,0,0,0.72)';
+  ctx.fillRect(0, 0, 1024, 192);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold ' + (fontPx || 64) + 'px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 512, 96);
+  var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c) }));
+  sp.scale.set(scaleW || 2.4, (scaleW || 2.4) * 0.1875, 1);
+  return sp;
+}
+
+function buildCookingEnvironment(sceneTarget) {
+  sceneTarget.background = new THREE.Color(0x1a1715);
+  sceneTarget.fog = new THREE.Fog(0x1a1715, 30, 120);
+  sceneTarget.add(new THREE.AmbientLight(0xffffff, 0.75));
+  var light = new THREE.DirectionalLight(0xfff5e6, 1.0);
+  light.position.set(6, 30, 10);
+  sceneTarget.add(light);
+
+  var floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 40), new THREE.MeshStandardMaterial({ color: 0x3a342e }));
+  floor.rotation.x = -Math.PI / 2;
+  sceneTarget.add(floor);
+  var wallMat = new THREE.MeshStandardMaterial({ color: 0x4a4238 });
+  var back = new THREE.Mesh(new THREE.BoxGeometry(60, 8, 1), wallMat);
+  back.position.set(0, 4, -14);
+  sceneTarget.add(back);
+  var wl = new THREE.Mesh(new THREE.BoxGeometry(1, 8, 28), wallMat);
+  wl.position.set(-30, 4, 0);
+  sceneTarget.add(wl);
+  var wr = new THREE.Mesh(new THREE.BoxGeometry(1, 8, 28), wallMat);
+  wr.position.set(30, 4, 0);
+  sceneTarget.add(wr);
+
+  var counter = new THREE.Mesh(new THREE.BoxGeometry(30, 1, 3.2), new THREE.MeshStandardMaterial({ color: 0x5d4b3a }));
+  counter.position.set(0, 0.5, -7);
+  sceneTarget.add(counter);
+
+  cookStations = [];
+  var stationX = [-12, -8, -4, 0, 4, 8, 12];
+  COOK_INGREDIENTS.forEach(function(ing, i) {
+    var x = stationX[i];
+    var plate = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.08, 20), new THREE.MeshStandardMaterial({ color: 0xcccccc }));
+    plate.position.set(x, 1.06, -7);
+    sceneTarget.add(plate);
+    var mat = new THREE.MeshStandardMaterial({ color: ing.color });
+    var mesh = null;
+    if (ing.id === 'cutlet') mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.68, 0.25, 16), mat);
+    else if (ing.id === 'bun') mesh = new THREE.Mesh(new THREE.SphereGeometry(0.62, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), mat);
+    else if (ing.id === 'cheese') mesh = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.18, 0.8), mat);
+    else if (ing.id === 'salad') mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.45, 0), mat);
+    else if (ing.id === 'ketchup' || ing.id === 'mustard') mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.32, 0.5, 12), mat);
+    else if (ing.id === 'sesame') {
+      mesh = new THREE.Group();
+      for (var s = 0; s < 10; s++) {
+        var dot = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 6), mat);
+        dot.position.set((Math.random() - 0.5) * 0.9, 0.06, (Math.random() - 0.5) * 0.9);
+        mesh.add(dot);
+      }
+    }
+    if (mesh) {
+      mesh.position.set(x, 1.55, -7);
+      sceneTarget.add(mesh);
+    }
+    var label = makeLabel(ing.name, null, 52, 2.0);
+    label.position.set(x, 2.7, -7);
+    sceneTarget.add(label);
+    cookStations.push({ id: ing.id, name: ing.name, plate: plate, mesh: mesh, mat: mat, picked: false, x: x, z: -7 });
+  });
+
+  cookDoneMat = new THREE.MeshStandardMaterial({ color: 0x27ae60, emissive: 0x000000 });
+  var pedestal = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.1, 1.6), new THREE.MeshStandardMaterial({ color: 0x555555 }));
+  pedestal.position.set(22, 0.55, -3);
+  sceneTarget.add(pedestal);
+  var btn = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.35, 24), cookDoneMat);
+  btn.position.set(22, 1.35, -3);
+  sceneTarget.add(btn);
+  cookDoneButton = btn;
+  var dl = makeLabel('Р“РћРўРћР’Рћ', 'rgba(39,174,96,0.8)', 54, 2.2);
+  dl.position.set(22, 2.3, -3);
+  sceneTarget.add(dl);
+
+  var stand = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 0.12, 20), new THREE.MeshStandardMaterial({ color: 0x888888 }));
+  stand.position.set(-20, 0.06, -6);
+  sceneTarget.add(stand);
+
+  cookingState = 'collect';
+  cookingSelected = [];
+  cookingScore = 0;
+  cookingServeCount = 0;
+  cookingFoodMesh = null;
+  cookingCustomerActive = false;
+  cookingCustomerMode = 'idle';
+  cookingRespawnTimer = 1.2;
+  cookPreviewGroup = null;
+  cookPreviewDirty = false;
+  if (cookingCustomer) { sceneTarget.remove(cookingCustomer); cookingCustomer = null; }
+  if (cookOrderBoardGroup) { sceneTarget.remove(cookOrderBoardGroup); cookOrderBoardGroup = null; }
+
+  targetQuaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'YXZ'));
+  currentQuaternion.copy(targetQuaternion);
+  playerPos.set(0, 1.7, 2);
+  playerVelY = 0;
+  isGrounded = true;
+}
+
+function buildCookCustomer(sceneTarget) {
+  var grp = new THREE.Group();
+  var shirtMat = new THREE.MeshStandardMaterial({ color: 0x3498db });
+  var pantsMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50 });
+  var l1 = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.55, 0.18), pantsMat);
+  l1.position.set(-0.16, 0.5, 0);
+  grp.add(l1);
+  var l2 = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.55, 0.18), pantsMat);
+  l2.position.set(0.16, 0.5, 0);
+  grp.add(l2);
+  var torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.65, 0.3), shirtMat);
+  torso.position.set(0, 1.1, 0);
+  grp.add(torso);
+  var head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 16), new THREE.MeshStandardMaterial({ color: 0xe8c8a0 }));
+  head.position.set(0, 1.68, 0);
+  grp.add(head);
+  var armL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.6, 0.16), shirtMat);
+  armL.position.set(-0.38, 1.15, 0);
+  grp.add(armL);
+  var armR = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.6, 0.16), shirtMat);
+  armR.position.set(0.38, 1.15, 0);
+  grp.add(armR);
+  return grp;
+}
+
+function buildCookOrderBoard(sceneTarget) {
+  if (cookOrderBoardGroup) { sceneTarget.remove(cookOrderBoardGroup); cookOrderBoardGroup = null; }
+  var grp = new THREE.Group();
+  var board = new THREE.Mesh(new THREE.BoxGeometry(5.2, 3.2, 0.15), new THREE.MeshStandardMaterial({ color: 0x232323 }));
+  board.position.set(0, 0, 0);
+  grp.add(board);
+  var title = makeLabel('Р—РђРљРђР—', 'rgba(39,174,96,0.85)', 56, 3.0);
+  title.position.set(0, 1.1, 0.1);
+  grp.add(title);
+  var y = 0.4;
+  var orderNames = [];
+  for (var i = 0; i < cookingCustomerOrder.length; i++) {
+    orderNames.push(cookIngName(cookingCustomerOrder[i]));
+  }
+  var countLabel = makeLabel(orderNames.join(' + '), null, 40, 4.4);
+  countLabel.position.set(0, -0.2, 0.1);
+  grp.add(countLabel);
+  var hint = makeLabel('СЃРѕР±РµСЂРё Рё РЅРµСЃРё', 'rgba(0,0,0,0.5)', 30, 3.4);
+  hint.position.set(0, -1.1, 0.1);
+  grp.add(hint);
+  grp.position.set(0, 6.2, -13.7);
+  sceneTarget.add(grp);
+  cookOrderBoardGroup = grp;
+}
+
+function spawnCookCustomer(sceneTarget) {
+  if (cookingCustomer) { sceneTarget.remove(cookingCustomer); }
+  cookingCustomer = buildCookCustomer(sceneTarget);
+  cookingCustomer.position.set(-20, 0, 10);
+  sceneTarget.add(cookingCustomer);
+  cookingCustomerOrder = [];
+  var pool = COOK_INGREDIENTS.slice();
+  var count = 2 + Math.floor(Math.random() * 2);
+  for (var i = 0; i < count; i++) {
+    var idx = Math.floor(Math.random() * pool.length);
+    cookingCustomerOrder.push(pool[idx].id);
+  }
+  buildCookOrderBoard(sceneTarget);
+  cookingCustomerActive = true;
+  cookingCustomerMode = 'entering';
+  cookingRespawnTimer = 0;
+}
+
+function updateCookCustomer(dt, sceneTarget) {
+  if (!cookingCustomerActive) return;
+  var target = cookingCustomer.position.clone();
+  if (cookingCustomerMode === 'entering') {
+    target.set(-20, 0, -2);
+    if (cookingCustomer.position.z < -2.4) cookingCustomerMode = 'waiting';
+  } else if (cookingCustomerMode === 'waiting') {
+    target.set(-20, 0, -2);
+  } else if (cookingCustomerMode === 'leaving') {
+    target.set(-20, 0, -6);
+    if (cookingCustomer.position.z < -6.5) {
+      cookingCustomerActive = false;
+      cookingCustomerMode = 'idle';
+      if (cookingCustomer) { sceneTarget.remove(cookingCustomer); cookingCustomer = null; }
+      if (cookOrderBoardGroup) { sceneTarget.remove(cookOrderBoardGroup); cookOrderBoardGroup = null; }
+      cookingRespawnTimer = 1.5;
+      return;
+    }
+  }
+  cookingCustomer.position.lerp(target, 0.06);
+  if (cookOrderBoardGroup) {
+    cookOrderBoardGroup.position.z = cookingCustomer.position.z - 4.5;
+  }
+}
+
+function buildCookPreview(sceneTarget, count) {
+  if (cookPreviewGroup) { sceneTarget.remove(cookPreviewGroup); cookPreviewGroup = null; }
+  if (count <= 0) return;
+  var grp = new THREE.Group();
+  var y = 0;
+  for (var i = 0; i < count; i++) {
+    var id = cookingSelected[i];
+    var ing = null;
+    for (var k = 0; k < COOK_INGREDIENTS.length; k++) if (COOK_INGREDIENTS[k].id === id) ing = COOK_INGREDIENTS[k];
+    if (!ing) continue;
+    var mat = new THREE.MeshStandardMaterial({ color: ing.color });
+    var m = null;
+    if (ing.id === 'cutlet') m = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.6, 0.25, 14), mat);
+    else if (ing.id === 'bun') m = new THREE.Mesh(new THREE.SphereGeometry(0.55, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat);
+    else if (ing.id === 'cheese') m = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.15, 0.75), mat);
+    else if (ing.id === 'salad') m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.4, 0), mat);
+    else if (ing.id === 'ketchup' || ing.id === 'mustard') m = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 0.45, 10), mat);
+    else if (ing.id === 'sesame') {
+      m = new THREE.Group();
+      for (var s = 0; s < 10; s++) {
+        var dot = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 6), mat);
+        dot.position.set((Math.random() - 0.5) * 0.8, 0.05, (Math.random() - 0.5) * 0.8);
+        m.add(dot);
+      }
+    }
+    if (m) {
+      m.position.set(0, y + 0.16, 0);
+      grp.add(m);
+      y += 0.34;
+    }
+  }
+  grp.position.set(-20, 1.0, -1.6);
+  sceneTarget.add(grp);
+  cookPreviewGroup = grp;
+}
+
+function updateCookPreview(sceneTarget) {
+  if (!cookPreviewDirty) return;
+  cookPreviewDirty = false;
+  buildCookPreview(sceneTarget, cookingSelected.length);
+}
+
+function cookingRightStickAction(sceneTarget) {
+  if (cookGazeItem === 'done') {
+    if (cookingSelected.length > 0) {
+      cookingState = 'serve';
+      setHudText('РќРµСЃРё Р±СѓСЂРіРµСЂ РєР»РёРµРЅС‚Сѓ!');
+    }
+  } else if (cookGazeItem === 'customer') {
+    if (cookingState === 'serve' && cookingFoodMesh) {
+      cookingScore += 100;
+      cookingServeCount++;
+      if (cookingCustomer) { sceneTarget.remove(cookingCustomer); cookingCustomer = null; }
+      cookingCustomerActive = false;
+      cookingCustomerMode = 'idle';
+      cookingRespawnTimer = 1.5;
+      cookingState = 'collect';
+      cookingSelected = [];
+      cookingFoodMesh = null;
+      cookPreviewDirty = true;
+      updateCookPreview(sceneTarget);
+      setHudText('РЎРїР°СЃРёР±Рѕ! +100. Р“РѕС‚РѕРІСЊ СЃР»РµРґСѓСЋС‰РёР№.');
+    }
+  } else if (cookGazeItem === 'station') {
+    if (cookingState === 'collect') {
+      var st = cookGazeStation;
+      if (st && !st.picked) {
+        st.picked = true;
+        if (st.mesh) st.mesh.visible = false;
+        cookingSelected.push(st.id);
+        cookPreviewDirty = true;
+        updateCookPreview(sceneTarget);
+      }
+    }
+  }
+}
+
+var cookingRightStickPrev = false;
+
+function handleCookingRightStick(sceneTarget) {
+  var pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  var rx = 0, ry = 0;
+  for (var i = 0; i < pads.length; i++) {
+    var gp = pads[i];
+    if (gp && gp.connected) {
+      rx = gp.axes[2] || 0;
+      ry = gp.axes[3] || 0;
+      break;
+    }
+  }
+  if (cookingState === 'serve') {
+    // Food is held in front of the player; right stick nudges it around.
+    if (!cookingFoodMesh) {
+      cookingFoodMesh = buildCookPreview(sceneTarget, cookingSelected.length);
+    }
+    if (cookingFoodMesh) {
+      var fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+      fwd.y = 0; fwd.normalize();
+      var base = playerPos.clone().add(fwd.clone().multiplyScalar(1.4));
+      base.y = 1.0;
+      cookingFoodMesh.position.lerp(base, 0.3);
+      if (Math.abs(rx) > 0.15 || Math.abs(ry) > 0.15) {
+        cookingFoodMesh.position.x += rx * 0.25;
+        cookingFoodMesh.position.z += ry * 0.25;
+      }
+    }
+    // Serve when the food reaches the customer
+    if (cookingFoodMesh && cookingCustomer && cookingCustomerActive) {
+      var d = cookingFoodMesh.position.distanceTo(cookingCustomer.position);
+      if (d < 2.0) serveCookFood(sceneTarget);
+    }
+    return;
+  }
+  // collect / other states: right stick press = pick ingredient / press done
+  if ((Math.abs(rx) > 0.6 || Math.abs(ry) > 0.6) && !cookingRightStickPrev) {
+    cookingRightStickPrev = true;
+    cookingRightStickAction(sceneTarget);
+  } else if (Math.abs(rx) < 0.15 && Math.abs(ry) < 0.15) {
+    cookingRightStickPrev = false;
+  }
+}
+
+
+function resetCookStations() {
+  for (var i = 0; i < cookStations.length; i++) {
+    var st = cookStations[i];
+    st.picked = false;
+    if (st.mesh) st.mesh.visible = true;
+  }
+}
+
+function serveCookFood(sceneTarget) {
+  if (cookingState !== 'serve') return;
+  cookingScore += 100;
+  cookingServeCount++;
+  if (cookingCustomer) { sceneTarget.remove(cookingCustomer); cookingCustomer = null; }
+  if (cookOrderBoardGroup) { sceneTarget.remove(cookOrderBoardGroup); cookOrderBoardGroup = null; }
+  cookingCustomerActive = false;
+  cookingCustomerMode = 'idle';
+  cookingRespawnTimer = 1.5;
+  cookingState = 'collect';
+  cookingSelected = [];
+  if (cookingFoodMesh) { sceneTarget.remove(cookingFoodMesh); cookingFoodMesh = null; }
+  cookingFoodMesh = null;
+  resetCookStations();
+  cookPreviewDirty = true;
+  updateCookPreview(sceneTarget);
+  setHudText('РЎРїР°СЃРёР±Рѕ! +100. Р“РѕС‚РѕРІСЊ СЃР»РµРґСѓСЋС‰РёР№.');
+}
+
+function setCookingGazeTarget(sceneTarget) {
+  cookGazeItem = null;
+  cookGazeStation = null;
+  if (currentActiveGame !== 'cooking') return;
+  var p = playerPos.clone();
+  p.y = 1.4;
+  for (var i = 0; i < cookStations.length; i++) {
+    var st = cookStations[i];
+    var d = p.distanceTo(new THREE.Vector3(st.x, 1.5, st.z));
+    if (d < 2.6) {
+      cookGazeItem = 'station';
+      cookGazeStation = st;
+      return;
+    }
+  }
+  if (cookDoneButton) {
+    var dd = p.distanceTo(cookDoneButton.position);
+    if (dd < 2.6) { cookGazeItem = 'done'; return; }
+  }
+  if (cookingCustomer) {
+    var cd = p.distanceTo(cookingCustomer.position);
+    if (cd < 3.2) { cookGazeItem = 'customer'; return; }
+  }
+}
+
+function updateCookingWorld(sceneTarget, dt) {
+  if (currentActiveGame !== 'cooking') return;
+  setCookingGazeTarget(sceneTarget);
+  if (cookingCustomerActive) {
+    updateCookCustomer(dt, sceneTarget);
+  } else if (cookingRespawnTimer > 0) {
+    cookingRespawnTimer -= dt;
+    if (cookingRespawnTimer <= 0) {
+      spawnCookCustomer(sceneTarget);
+    }
+  }
+  updateCookPreview(sceneTarget);
+  if (cookDoneMat) {
+    cookDoneMat.emissive.set(cookGazeItem === 'done' ? 0x2ecc71 : 0x000000);
+  }
+  if (cookingSelected.length > 0 && cookingState === 'collect') {
+    setHudText('РЎРѕР±СЂР°РЅРѕ: ' + cookingSelected.length + ' РёРЅРіСЂ. РќР°Р¶РјРё Р“РћРўРћР’Рћ');
+  }
+}
+
 function setHudText(text) {
   var lh = document.getElementById('left-hud');
   var rh = document.getElementById('right-hud');
@@ -815,11 +1301,15 @@ function buildZombieEnvironment(sceneTarget) {
 
   zombies = [];
   bullets = [];
-  for (var i = 0; i < 18; i++) {
+  for (var i = 0; i < 10; i++) {
+    var spread = (Math.random() - 0.5) * 1.2;
+    var dist = 32 + Math.random() * 22;
+    var zx = Math.sin(spread) * dist;
+    var zz = -dist * 0.9;
     var z = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x336633 }));
-    z.position.set((Math.random() - 0.5) * 120, 1.1, (Math.random() - 0.5) * 120);
+    z.position.set(zx, 1.1, zz);
     sceneTarget.add(z);
-    zombies.push({ mesh: z, hp: 3, speed: 0.8 + Math.random() * 0.6 });
+    zombies.push({ mesh: z, hp: 3, speed: 0.12 + Math.random() * 0.06, homeX: zx, homeZ: zz });
   }
 }
 
@@ -829,7 +1319,7 @@ function shoot() {
   dir.y = 0;
   dir.normalize();
   var b = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffff88 }));
-  b.position.copy(playerPos).add(new THREE.Vector3(0, 1.6, 0));
+  b.position.copy(playerPos).add(new THREE.Vector3(0, 1.0, 0));
   b.userData = { dir: dir, life: 90 };
   var tgt = (role === 'pc' && pcScene) ? pcScene : scene;
   tgt.add(b);
@@ -843,12 +1333,16 @@ function updateZombies(dt) {
     var toPlayer = playerPos.clone().sub(z.mesh.position);
     toPlayer.y = 0;
     var dist = toPlayer.length();
-    if (dist > 0.8) {
+    var chaseDist = 55;
+    if (dist < chaseDist && dist > 1.2) {
       toPlayer.normalize().multiplyScalar(z.speed * dt * 60);
       z.mesh.position.add(toPlayer);
     }
     if (dist < 2.2) {
-      // damage player later if needed
+      // damage later
+    }
+    if (sessionRef && role === 'pc' && pcStreamActive) {
+      sessionRef.child('zombies/' + i).update({ x: z.mesh.position.x, z: z.mesh.position.z });
     }
   }
 }
@@ -871,7 +1365,17 @@ function updateBullets(dt) {
         bullets.splice(i, 1);
         if (z.hp <= 0) {
           scene.remove(z.mesh);
-          zombies.splice(j, 1);
+          // respawn
+          var angle = Math.random() * Math.PI * 2;
+          var dist = 45 + Math.random() * 25;
+          var nx = Math.cos(angle) * dist;
+          var nz = Math.sin(angle) * dist;
+          z.mesh.position.set(nx, 1.1, nz);
+          z.hp = 3;
+          z.homeX = nx;
+          z.homeZ = nz;
+          sceneTarget.add(z.mesh);
+          zombies.push(z);
         }
         break;
       }
@@ -892,7 +1396,7 @@ function checkRoofRunProgress() {
   if (onRoof === -1) return;
   if (onRoof > lastRoofIndex) {
     lastRoofIndex = onRoof;
-    setHudText('Крыша: ' + (onRoof + 1) + ' / ' + roofGroup.length);
+    setHudText('РљСЂС‹С€Р°: ' + (onRoof + 1) + ' / ' + roofGroup.length);
   }
 }
 
@@ -922,14 +1426,20 @@ function applyRoofCollision() {
 function updateHUD() {
   if (currentActiveGame === 'underwater' || currentActiveGame === 'cityquest' || currentActiveGame === 'roofrun') {
     if (!trialCompleted) {
-      setHudText('Монеты: ' + collectedCount + ' / ' + totalCollectibles);
+      setHudText('РњРѕРЅРµС‚С‹: ' + collectedCount + ' / ' + totalCollectibles);
       if (collectedCount >= totalCollectibles) {
         trialCompleted = true;
-        setHudText('ПОБЕДА! Всё собрано');
+        setHudText('РџРћР‘Р•Р”Рђ! Р’СЃС‘ СЃРѕР±СЂР°РЅРѕ');
       }
     }
   } else if (currentActiveGame === 'space') {
-    setHudText('Космос: правый стик — гравитация вкл/выкл');
+    setHudText('РљРѕСЃРјРѕСЃ: РїСЂР°РІС‹Р№ СЃС‚РёРє вЂ” РіСЂР°РІРёС‚Р°С†РёСЏ РІРєР»/РІС‹РєР»');
+  } else if (currentActiveGame === 'cooking') {
+    if (cookingState === 'collect') {
+      setHudText('РЎРѕР±РµСЂРё Р±СѓСЂРіРµСЂ: РїРѕРґРѕР№РґРё Рє РёРЅРіСЂРµРґРёРµРЅС‚Сѓ Рё РЅР°Р¶РјРё РїСЂР°РІС‹Р№ СЃС‚РёРє. РљРЅРѕРїРєР° Р“РћРўРћР’Рћ СЃРїСЂР°РІР°.');
+    } else if (cookingState === 'serve') {
+      setHudText('РќРµСЃРё Р±СѓСЂРіРµСЂ РєР»РёРµРЅС‚Сѓ!');
+    }
   }
 }
 
@@ -1010,8 +1520,17 @@ function checkShootButton() {
 //  - city/trials: jump
 //  - space: toggle gravity on/off
 //  - underwater: hold to swim up
+function getCurrentScene() {
+  return (role === 'pc' && pcScene) ? pcScene : scene;
+}
+
 function handleRightStick() {
   var active = getRightStick();
+  if (currentActiveGame === 'cooking') {
+    handleCookingRightStick(getCurrentScene());
+    rightStickPrev = active;
+    return;
+  }
   if (active && !rightStickPrev) {
     if (currentActiveGame === 'zombie') {
       if (Date.now() - lastShotTime > 180) {
@@ -1020,7 +1539,7 @@ function handleRightStick() {
       }
     } else if (currentActiveGame === 'space') {
       spaceGravity = !spaceGravity;
-      setHudText(spaceGravity ? 'Гравитация: ВКЛ' : 'Гравитация: ВЫКЛ');
+      setHudText(spaceGravity ? 'Р“СЂР°РІРёС‚Р°С†РёСЏ: Р’РљР›' : 'Р“СЂР°РІРёС‚Р°С†РёСЏ: Р’Р«РљР›');
       setTimeout(function() { updateHUD(); }, 1500);
     } else if (currentActiveGame !== 'underwater') {
       if (isGrounded) {
@@ -1084,6 +1603,11 @@ function updatePhysics(dt) {
     playerPos.y += playerVelY * dt;
     if (playerPos.y < 1.5) { playerPos.y = 1.5; playerVelY = 0; }
     if (playerPos.y > 25) { playerPos.y = 25; playerVelY = 0; }
+  } else if (currentActiveGame === 'cooking') {
+    // Keep player grounded at eye height in the kitchen
+    playerPos.y = 1.7;
+    playerVelY = 0;
+    isGrounded = true;
   }
 
   if (sessionRef && (pcStreamActive || isPlaying) && !posSameAsWritten(playerPos.x, playerPos.y, playerPos.z, 0.05)) {
@@ -1108,6 +1632,10 @@ function initPCStreamScene() {
     buildRoofRunEnvironment(pcScene);
   } else if (currentActiveGame === 'zombie') {
     buildZombieEnvironment(pcScene);
+  } else if (currentActiveGame === 'run') {
+    buildRunEnvironment(pcScene);
+  } else if (currentActiveGame === 'cooking') {
+    buildCookingEnvironment(pcScene);
   } else {
     buildCityEnvironment(pcScene);
   }
@@ -1211,7 +1739,7 @@ function animatePC() {
   handleRightStick();
   updatePhysics(0.016);
 
-  if (pcStreamActive) {
+  if (pcStreamActive || currentActiveGame === 'run' || currentActiveGame === 'cooking') {
     pcCamera.position.copy(playerPos);
     pcCamera.quaternion.copy(currentQuaternion);
   } else {
@@ -1224,6 +1752,10 @@ function animatePC() {
   if (currentActiveGame === 'zombie') {
     updateZombies(0.016);
     updateBullets(0.016);
+  } else if (currentActiveGame === 'run') {
+    updateRun(0.016);
+  } else if (currentActiveGame === 'cooking') {
+    updateCookingWorld(pcScene, 0.016);
   }
   updateHUD();
 
@@ -1255,7 +1787,7 @@ function stopVRGameEngine() {
   document.getElementById('ui-layer').style.display = 'flex';
   document.getElementById('step-role').style.display = 'none';
   document.getElementById('step-phone-wait').style.display = 'block';
-  document.getElementById('step-phone-wait').innerHTML = '<h1>Ожидание игры</h1><p>Игра завершена на ПК. Выберите другую игру.</p><br><button class="btn btn-sec" onclick="phoneGoFullscreen()">Полный экран</button>';
+  document.getElementById('step-phone-wait').innerHTML = '<h1>РћР¶РёРґР°РЅРёРµ РёРіСЂС‹</h1><p>РРіСЂР° Р·Р°РІРµСЂС€РµРЅР° РЅР° РџРљ. Р’С‹Р±РµСЂРёС‚Рµ РґСЂСѓРіСѓСЋ РёРіСЂСѓ.</p><br><button class="btn btn-sec" onclick="phoneGoFullscreen()">РџРѕР»РЅС‹Р№ СЌРєСЂР°РЅ</button>';
 }
 
 function initVR3D() {
@@ -1272,6 +1804,8 @@ function initVR3D() {
     buildRoofRunEnvironment(scene);
   } else if (currentActiveGame === 'zombie') {
     buildZombieEnvironment(scene);
+  } else if (currentActiveGame === 'cooking') {
+    buildCookingEnvironment(scene);
   } else {
     buildCityEnvironment(scene);
   }
@@ -1354,6 +1888,8 @@ function animateVR() {
   if (currentActiveGame === 'zombie') {
     updateZombies(0.016);
     updateBullets(0.016);
+  } else if (currentActiveGame === 'cooking') {
+    updateCookingWorld(scene, 0.016);
   }
   updateHUD();
 
