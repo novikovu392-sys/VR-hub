@@ -1018,24 +1018,25 @@ function buildCookCustomer(sceneTarget) {
 function buildCookOrderBoard(sceneTarget) {
   if (cookOrderBoardGroup) { sceneTarget.remove(cookOrderBoardGroup); cookOrderBoardGroup = null; }
   var grp = new THREE.Group();
+  // Flat board mounted on the back wall, high above the counter, so it never overlaps the ingredients.
   var board = new THREE.Mesh(new THREE.BoxGeometry(5.2, 3.2, 0.15), new THREE.MeshStandardMaterial({ color: 0x232323 }));
   board.position.set(0, 0, 0);
   grp.add(board);
   var title = makeLabel('ЗАКАЗ', 'rgba(39,174,96,0.85)', 56, 3.0);
-  title.position.set(0, 1.1, 0.1);
+  title.position.set(0, 1.1, 0.12);
   grp.add(title);
-  var y = 0.4;
   var orderNames = [];
   for (var i = 0; i < cookingCustomerOrder.length; i++) {
     orderNames.push(cookIngName(cookingCustomerOrder[i]));
   }
   var countLabel = makeLabel(orderNames.join(' + '), null, 40, 4.4);
-  countLabel.position.set(0, -0.2, 0.1);
+  countLabel.position.set(0, -0.2, 0.12);
   grp.add(countLabel);
   var hint = makeLabel('собери и неси', 'rgba(0,0,0,0.5)', 30, 3.4);
-  hint.position.set(0, -1.1, 0.1);
+  hint.position.set(0, -1.1, 0.12);
   grp.add(hint);
   grp.position.set(0, 6.2, -13.7);
+  grp.rotation.y = 0;
   sceneTarget.add(grp);
   cookOrderBoardGroup = grp;
 }
@@ -1078,9 +1079,6 @@ function updateCookCustomer(dt, sceneTarget) {
     }
   }
   cookingCustomer.position.lerp(target, 0.06);
-  if (cookOrderBoardGroup) {
-    cookOrderBoardGroup.position.z = cookingCustomer.position.z - 4.5;
-  }
 }
 
 function buildCookPreview(sceneTarget, count) {
@@ -1188,12 +1186,23 @@ function handleCookingRightStick(sceneTarget) {
         cookingFoodMesh.position.x += rx * 0.25;
         cookingFoodMesh.position.z += ry * 0.25;
       }
+      // Auto-serve fallback: if the burger gets close enough to the customer.
+      if (cookingCustomer && cookingCustomerActive &&
+          cookingFoodMesh.position.distanceTo(cookingCustomer.position) < 2.0) {
+        serveCookFood(sceneTarget);
+        return;
+      }
     }
-    // Serve when the food reaches the customer
-    if (cookingFoodMesh && cookingCustomer && cookingCustomerActive) {
-      var d = cookingFoodMesh.position.distanceTo(cookingCustomer.position);
-      if (d < 2.0) serveCookFood(sceneTarget);
+    // Right stick tap = hand the burger to the customer if you are close enough.
+    if ((Math.abs(rx) > 0.6 || Math.abs(ry) > 0.6) && !cookingRightStickPrev) {
+      cookingRightStickPrev = true;
+      if (cookingCustomer && cookingCustomerActive) {
+        var sd = playerPos.distanceTo(cookingCustomer.position);
+        if (sd < 3.0 && cookingFoodMesh) serveCookFood(sceneTarget);
+      }
+      return;
     }
+    if (Math.abs(rx) < 0.15 && Math.abs(ry) < 0.15) cookingRightStickPrev = false;
     return;
   }
   // collect / other states: right stick press = pick ingredient / press done
