@@ -198,6 +198,7 @@ var cookingCustomerMode = 'idle';
 var cookingRespawnTimer = 0;
 var cookPreviewGroup = null;
 var cookPreviewDirty = false;
+var cookOrderBoardGroup = null;
 
 function posSameAsWritten(x, y, z, eps) {
   if (eps === undefined) eps = 0.05;
@@ -980,6 +981,7 @@ function buildCookingEnvironment(sceneTarget) {
   cookPreviewGroup = null;
   cookPreviewDirty = false;
   if (cookingCustomer) { sceneTarget.remove(cookingCustomer); cookingCustomer = null; }
+  if (cookOrderBoardGroup) { sceneTarget.remove(cookOrderBoardGroup); cookOrderBoardGroup = null; }
 
   targetQuaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'YXZ'));
   currentQuaternion.copy(targetQuaternion);
@@ -1013,6 +1015,31 @@ function buildCookCustomer(sceneTarget) {
   return grp;
 }
 
+function buildCookOrderBoard(sceneTarget) {
+  if (cookOrderBoardGroup) { sceneTarget.remove(cookOrderBoardGroup); cookOrderBoardGroup = null; }
+  var grp = new THREE.Group();
+  var board = new THREE.Mesh(new THREE.BoxGeometry(5.2, 3.2, 0.15), new THREE.MeshStandardMaterial({ color: 0x232323 }));
+  board.position.set(0, 0, 0);
+  grp.add(board);
+  var title = makeLabel('ЗАКАЗ', 'rgba(39,174,96,0.85)', 56, 3.0);
+  title.position.set(0, 1.1, 0.1);
+  grp.add(title);
+  var y = 0.4;
+  var orderNames = [];
+  for (var i = 0; i < cookingCustomerOrder.length; i++) {
+    orderNames.push(cookIngName(cookingCustomerOrder[i]));
+  }
+  var countLabel = makeLabel(orderNames.join(' + '), null, 40, 4.4);
+  countLabel.position.set(0, -0.2, 0.1);
+  grp.add(countLabel);
+  var hint = makeLabel('собери и неси', 'rgba(0,0,0,0.5)', 30, 3.4);
+  hint.position.set(0, -1.1, 0.1);
+  grp.add(hint);
+  grp.position.set(0, 2.6, -12.6);
+  sceneTarget.add(grp);
+  cookOrderBoardGroup = grp;
+}
+
 function spawnCookCustomer(sceneTarget) {
   if (cookingCustomer) { sceneTarget.remove(cookingCustomer); }
   cookingCustomer = buildCookCustomer(sceneTarget);
@@ -1025,6 +1052,7 @@ function spawnCookCustomer(sceneTarget) {
     var idx = Math.floor(Math.random() * pool.length);
     cookingCustomerOrder.push(pool[idx].id);
   }
+  buildCookOrderBoard(sceneTarget);
   cookingCustomerActive = true;
   cookingCustomerMode = 'entering';
   cookingRespawnTimer = 0;
@@ -1044,11 +1072,15 @@ function updateCookCustomer(dt, sceneTarget) {
       cookingCustomerActive = false;
       cookingCustomerMode = 'idle';
       if (cookingCustomer) { sceneTarget.remove(cookingCustomer); cookingCustomer = null; }
+      if (cookOrderBoardGroup) { sceneTarget.remove(cookOrderBoardGroup); cookOrderBoardGroup = null; }
       cookingRespawnTimer = 1.5;
       return;
     }
   }
   cookingCustomer.position.lerp(target, 0.06);
+  if (cookOrderBoardGroup) {
+    cookOrderBoardGroup.position.z = cookingCustomer.position.z - 4.5;
+  }
 }
 
 function buildCookPreview(sceneTarget, count) {
@@ -1187,6 +1219,7 @@ function serveCookFood(sceneTarget) {
   cookingScore += 100;
   cookingServeCount++;
   if (cookingCustomer) { sceneTarget.remove(cookingCustomer); cookingCustomer = null; }
+  if (cookOrderBoardGroup) { sceneTarget.remove(cookOrderBoardGroup); cookOrderBoardGroup = null; }
   cookingCustomerActive = false;
   cookingCustomerMode = 'idle';
   cookingRespawnTimer = 1.5;
