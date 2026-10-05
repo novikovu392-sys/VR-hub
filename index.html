@@ -1112,7 +1112,11 @@ function buildCookPreview(sceneTarget, count) {
       y += 0.34;
     }
   }
-  grp.position.set(-20, 1.0, -1.6);
+  // Show the assembled burger in front of the player, not near the customer.
+  var pfx = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+  pfx.y = 0; pfx.normalize();
+  grp.position.copy(playerPos).add(pfx.clone().multiplyScalar(1.2));
+  grp.position.y = 1.0;
   sceneTarget.add(grp);
   cookPreviewGroup = grp;
 }
@@ -1125,9 +1129,11 @@ function updateCookPreview(sceneTarget) {
 
 function cookingRightStickAction(sceneTarget) {
   if (cookGazeItem === 'done') {
-    if (cookingSelected.length > 0) {
+    if (cookingSelected.length > 0 && cookingSelected.length === cookingCustomerOrder.length) {
       cookingState = 'serve';
-      setHudText('Неси бургер клиенту!');
+      serveCookFood(sceneTarget);
+    } else {
+      setHudText('Собери все ингредиенты: ' + cookingSelected.length + '/' + cookingCustomerOrder.length);
     }
   } else if (cookGazeItem === 'customer') {
     if (cookingState === 'serve' && cookingFoodMesh) {
@@ -1148,11 +1154,19 @@ function cookingRightStickAction(sceneTarget) {
     if (cookingState === 'collect') {
       var st = cookGazeStation;
       if (st && !st.picked) {
-        st.picked = true;
-        if (st.mesh) st.mesh.visible = false;
-        cookingSelected.push(st.id);
-        cookPreviewDirty = true;
-        updateCookPreview(sceneTarget);
+        var nextId = cookingCustomerOrder[cookingSelected.length];
+        if (nextId && st.id === nextId) {
+          st.picked = true;
+          if (st.mesh) st.mesh.visible = false;
+          cookingSelected.push(st.id);
+          cookPreviewDirty = true;
+          updateCookPreview(sceneTarget);
+          if (cookingSelected.length >= cookingCustomerOrder.length) {
+            setHudText('Собрано всё! Наступи на плиту ГОТОВО');
+          }
+        } else {
+          setHudText('Не по порядку! Нужен: ' + cookIngName(nextId));
+        }
       }
     }
   }
@@ -1172,37 +1186,18 @@ function handleCookingRightStick(sceneTarget) {
     }
   }
   if (cookingState === 'serve') {
-    // Food is held in front of the player; right stick nudges it around.
-    if (!cookingFoodMesh) {
-      cookingFoodMesh = buildCookPreview(sceneTarget, cookingSelected.length);
+    // Burger is glued in front of the player and follows them.
+    if (!cookingFoodMesh || !cookPreviewGroup) {
+      buildCookPreview(sceneTarget, cookingSelected.length);
+      cookingFoodMesh = cookPreviewGroup;
     }
     if (cookingFoodMesh) {
       var fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
       fwd.y = 0; fwd.normalize();
-      var base = playerPos.clone().add(fwd.clone().multiplyScalar(1.4));
+      var base = playerPos.clone().add(fwd.clone().multiplyScalar(1.2));
       base.y = 1.0;
-      cookingFoodMesh.position.lerp(base, 0.3);
-      if (Math.abs(rx) > 0.15 || Math.abs(ry) > 0.15) {
-        cookingFoodMesh.position.x += rx * 0.25;
-        cookingFoodMesh.position.z += ry * 0.25;
-      }
-      // Auto-serve fallback: if the burger gets close enough to the customer.
-      if (cookingCustomer && cookingCustomerActive &&
-          cookingFoodMesh.position.distanceTo(cookingCustomer.position) < 2.0) {
-        serveCookFood(sceneTarget);
-        return;
-      }
+      cookingFoodMesh.position.copy(base);
     }
-    // Right stick tap = hand the burger to the customer if you are close enough.
-    if ((Math.abs(rx) > 0.6 || Math.abs(ry) > 0.6) && !cookingRightStickPrev) {
-      cookingRightStickPrev = true;
-      if (cookingCustomer && cookingCustomerActive) {
-        var sd = playerPos.distanceTo(cookingCustomer.position);
-        if (sd < 3.0 && cookingFoodMesh) serveCookFood(sceneTarget);
-      }
-      return;
-    }
-    if (Math.abs(rx) < 0.15 && Math.abs(ry) < 0.15) cookingRightStickPrev = false;
     return;
   }
   // collect / other states: right stick press = pick ingredient / press done
@@ -1236,6 +1231,7 @@ function serveCookFood(sceneTarget) {
   cookingSelected = [];
   if (cookingFoodMesh) { sceneTarget.remove(cookingFoodMesh); cookingFoodMesh = null; }
   cookingFoodMesh = null;
+  if (cookPreviewGroup) { sceneTarget.remove(cookPreviewGroup); cookPreviewGroup = null; }
   resetCookStations();
   cookPreviewDirty = true;
   updateCookPreview(sceneTarget);
@@ -1278,20 +1274,31 @@ function updateCookingWorld(sceneTarget, dt) {
       spawnCookCustomer(sceneTarget);
     }
   }
+  // While carrying the burger, walking up to the customer hands it over.
+  if (cookingState === 'serve' && cookingCustomer && cookingCustomerActive) {
+    var csd = playerPos.distanceTo(cookingCustomer.position);
+    if (csd < 3.5) {
+      serveCookFood(sceneTarget);
+    }
+  }
   updateCookPreview(sceneTarget);
   if (cookDoneMat) {
     cookDoneMat.emissive.set(cookGazeItem === 'done' ? 0x2ecc71 : 0x000000);
   }
-  // Step on the plate = press DONE
+  // Step on the plate = hand over the order and spawn a new customer.
   if (cookingState === 'collect' && cookingSelected.length > 0 && cookDoneButton) {
     var pd = playerPos.distanceTo(new THREE.Vector3(cookDoneButton.position.x, 1.7, cookDoneButton.position.z));
     if (pd < 2.4) {
-      cookingState = 'serve';
-      setHudText('Неси бургер клиенту!');
+      if (cookingSelected.length === cookingCustomerOrder.length) {
+        cookingState = 'serve';
+        serveCookFood(sceneTarget);
+      } else {
+        setHudText('Собери все ингредиенты: ' + (cookingSelected.length) + '/' + cookingCustomerOrder.length);
+      }
     }
   }
   if (cookingSelected.length > 0 && cookingState === 'collect') {
-    setHudText('Собрано: ' + cookingSelected.length + ' ингр. Наступи на плиту ГОТОВО');
+    setHudText('Собрано: ' + cookingSelected.length + ' / ' + cookingCustomerOrder.length + '. Наступи на плиту ГОТОВО');
   }
 }
 
