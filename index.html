@@ -1015,27 +1015,29 @@ function buildCookCustomer(sceneTarget) {
   return grp;
 }
 
+
+
 function buildCookOrderBoard(sceneTarget) {
   if (cookOrderBoardGroup) { sceneTarget.remove(cookOrderBoardGroup); cookOrderBoardGroup = null; }
   var grp = new THREE.Group();
-  // Flat board mounted on the back wall, high above the counter, so it never overlaps the ingredients.
-  var board = new THREE.Mesh(new THREE.BoxGeometry(5.2, 3.2, 0.15), new THREE.MeshStandardMaterial({ color: 0x232323 }));
+  // Board held in front of the player, above the counter, so the whole order is clearly visible.
+  var board = new THREE.Mesh(new THREE.BoxGeometry(5.4, 3.4, 0.15), new THREE.MeshStandardMaterial({ color: 0x232323 }));
   board.position.set(0, 0, 0);
   grp.add(board);
   var title = makeLabel('ЗАКАЗ', 'rgba(39,174,96,0.85)', 56, 3.0);
-  title.position.set(0, 1.1, 0.12);
+  title.position.set(0, 1.15, 0.12);
   grp.add(title);
   var orderNames = [];
   for (var i = 0; i < cookingCustomerOrder.length; i++) {
     orderNames.push(cookIngName(cookingCustomerOrder[i]));
   }
-  var countLabel = makeLabel(orderNames.join(' + '), null, 40, 4.4);
-  countLabel.position.set(0, -0.2, 0.12);
+  var countLabel = makeLabel(orderNames.join(' + '), null, 44, 4.8);
+  countLabel.position.set(0, -0.25, 0.12);
   grp.add(countLabel);
-  var hint = makeLabel('собери и неси', 'rgba(0,0,0,0.5)', 30, 3.4);
-  hint.position.set(0, -1.1, 0.12);
+  var hint = makeLabel('подойди и отдай', 'rgba(0,0,0,0.5)', 30, 3.6);
+  hint.position.set(0, -1.15, 0.12);
   grp.add(hint);
-  grp.position.set(0, 6.2, -13.7);
+  grp.position.set(0, 3.9, -5.2);
   grp.rotation.y = 0;
   sceneTarget.add(grp);
   cookOrderBoardGroup = grp;
