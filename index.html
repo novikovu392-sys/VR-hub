@@ -1017,6 +1017,14 @@ function buildCookCustomer(sceneTarget) {
 
 
 
+function shuffleArray(arr) {
+  for (var i = arr.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+  return arr;
+}
+
 function buildCookOrderBoard(sceneTarget) {
   if (cookOrderBoardGroup) { sceneTarget.remove(cookOrderBoardGroup); cookOrderBoardGroup = null; }
   var grp = new THREE.Group();
@@ -1050,10 +1058,12 @@ function spawnCookCustomer(sceneTarget) {
   sceneTarget.add(cookingCustomer);
   cookingCustomerOrder = [];
   var pool = COOK_INGREDIENTS.slice();
+  shuffleArray(pool);
   var count = 2 + Math.floor(Math.random() * 2);
+  // Take unique ingredients so the order never asks for the same one twice.
+  count = Math.min(count, pool.length);
   for (var i = 0; i < count; i++) {
-    var idx = Math.floor(Math.random() * pool.length);
-    cookingCustomerOrder.push(pool[idx].id);
+    cookingCustomerOrder.push(pool[i].id);
   }
   buildCookOrderBoard(sceneTarget);
   cookingCustomerActive = true;
