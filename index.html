@@ -118,6 +118,11 @@
         <p>Бесконечная дорога. Левый стик — поворот.</p>
         <button class="btn" onclick="launchGame('run')">Запустить</button>
       </div>
+      <div class="game-card">
+        <h3>Рисовалка</h3>
+        <p>Подойди к холсту, жми правый стик и рисуй. Слева выбери цвет.</p>
+        <button class="btn" onclick="launchGame('draw')">Запустить</button>
+      </div>
     </div>
     <div id="pc-view-container"><div id="pc-hud"></div></div>
   </div>
@@ -201,6 +206,23 @@ var cookingRespawnTimer = 0;
 var cookPreviewGroup = null;
 var cookPreviewDirty = false;
 var cookOrderBoardGroup = null;
+var drawCanvasMesh = null;
+var drawCanvasTexture = null;
+var drawCanvasCtx = null;
+var drawCanvasEl = null;
+var drawCanvasW = 512;
+var drawCanvasH = 512;
+var drawColor = '#f1c40f';
+var drawColors = [];
+var drawPalette = [];
+var drawGazeItem = null;
+var drawGazeSwatch = null;
+var drawRightStickPrev = false;
+var drawLastPoint = null;
+var drawActive = false;
+var drawBrush = null;
+var drawBrushU = 0.5;
+var drawBrushV = 0.5;
 
 function posSameAsWritten(x, y, z, eps) {
   if (eps === undefined) eps = 0.05;
@@ -342,6 +364,9 @@ function launchGame(gameName) {
     runSpeed = 22;
     runOffsetX = 0;
   } else if (gameName === 'cooking') {
+    playerPos.set(0, 1.7, 2);
+    isGrounded = true;
+  } else if (gameName === 'draw') {
     playerPos.set(0, 1.7, 2);
     isGrounded = true;
   }
@@ -1325,6 +1350,150 @@ function setHudText(text) {
   if (ph) ph.innerText = text;
 }
 
+function makeDrawCanvas(sceneTarget) {
+  drawCanvasEl = document.createElement('canvas');
+  drawCanvasEl.width = drawCanvasW;
+  drawCanvasEl.height = drawCanvasH;
+  drawCanvasCtx = drawCanvasEl.getContext('2d');
+  drawCanvasCtx.fillStyle = '#f5f0e6';
+  drawCanvasCtx.fillRect(0, 0, drawCanvasW, drawCanvasH);
+  drawCanvasTexture = new THREE.CanvasTexture(drawCanvasEl);
+  drawCanvasTexture.needsUpdate = true;
+  drawCanvasMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(5, 5),
+    new THREE.MeshBasicMaterial({ map: drawCanvasTexture, side: THREE.DoubleSide })
+  );
+  drawCanvasMesh.rotation.x = -Math.PI / 2;
+  drawCanvasMesh.position.set(0, 2.6, -6);
+  sceneTarget.add(drawCanvasMesh);
+  drawLastPoint = null;
+  drawActive = false;
+}
+
+function buildDrawEnvironment(sceneTarget) {
+  sceneTarget.background = new THREE.Color(0x1a1a2e);
+  sceneTarget.fog = new THREE.Fog(0x1a1a2e, 30, 120);
+  sceneTarget.add(new THREE.AmbientLight(0xffffff, 0.8));
+  var light = new THREE.DirectionalLight(0xffffff, 1.0);
+  light.position.set(8, 30, 10);
+  sceneTarget.add(light);
+  var floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 40), new THREE.MeshStandardMaterial({ color: 0x2a2a3e }));
+  floor.rotation.x = -Math.PI / 2;
+  sceneTarget.add(floor);
+  var wallMat = new THREE.MeshStandardMaterial({ color: 0x3a3a52 });
+  var back = new THREE.Mesh(new THREE.BoxGeometry(60, 10, 1.2), wallMat);
+  back.position.set(0, 5, -14);
+  sceneTarget.add(back);
+  var easel = new THREE.Mesh(new THREE.BoxGeometry(0.15, 4.5, 0.15), new THREE.MeshStandardMaterial({ color: 0x8a5a2a }));
+  easel.position.set(-3.2, 2.2, -3.5);
+  sceneTarget.add(easel);
+  var easel2 = new THREE.Mesh(new THREE.BoxGeometry(0.15, 4.5, 0.15), new THREE.MeshStandardMaterial({ color: 0x8a5a2a }));
+  easel2.position.set(3.2, 2.2, -3.5);
+  sceneTarget.add(easel2);
+  makeDrawCanvas(sceneTarget);
+  drawPalette = [];
+  var cols = ['#e74c3c', '#e67e22', '#f1c40f', '#2ecc71', '#3498db', '#9b59b6', '#ffffff', '#000000'];
+  drawColors = cols;
+  for (var i = 0; i < cols.length; i++) {
+    var sw = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.32, 0.32, 0.2, 20),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(cols[i]) })
+    );
+    sw.position.set(-3.5 + i * 1.0, 1.1, -2.6);
+    sceneTarget.add(sw);
+    drawPalette.push({ mesh: sw, color: cols[i], x: sw.position.x, z: sw.position.z });
+  }
+  var label = makeLabel('РИСОВАЛКА: подойди к холсту, правый стик - рисование', null, 40, 6.0);
+  label.position.set(0, 4.5, -8);
+  sceneTarget.add(label);
+  targetQuaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'YXZ'));
+  currentQuaternion.copy(targetQuaternion);
+  playerPos.set(0, 1.7, 2);
+  playerVelY = 0;
+  isGrounded = true;
+}
+
+function setDrawGazeTarget() {
+  drawGazeItem = null;
+  drawGazeSwatch = null;
+  if (currentActiveGame !== 'draw') return;
+  var p = playerPos.clone();
+  p.y = 1.4;
+  if (drawCanvasMesh) {
+    var d = p.distanceTo(drawCanvasMesh.position);
+    if (d < 3.0) { drawGazeItem = 'canvas'; }
+  }
+  for (var i = 0; i < drawPalette.length; i++) {
+    var sw = drawPalette[i];
+    var d2 = p.distanceTo(new THREE.Vector3(sw.x, 1.1, sw.z));
+    if (d2 < 1.6) { drawGazeItem = 'swatch'; drawGazeSwatch = sw; return; }
+  }
+}
+
+function handleDrawRightStick(sceneTarget) {
+  var pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  var rx = 0, ry = 0;
+  for (var i = 0; i < pads.length; i++) {
+    var gp = pads[i];
+    if (gp && gp.connected) {
+      rx = gp.axes[2] || 0;
+      ry = gp.axes[3] || 0;
+      break;
+    }
+  }
+  var pressed = (Math.abs(rx) > 0.5 || Math.abs(ry) > 0.5);
+  if (pressed && !drawRightStickPrev) {
+    drawRightStickPrev = true;
+    if (drawGazeItem === 'swatch' && drawGazeSwatch) {
+      drawColor = drawGazeSwatch.color;
+      setHudText('Цвет: ' + drawColor);
+    } else if (drawGazeItem === 'canvas') {
+      drawActive = true;
+      drawLastPoint = null;
+      setHudText('Рисуй! Правый стик - кисть');
+    }
+    return;
+  }
+  if (!pressed && drawRightStickPrev) {
+    drawRightStickPrev = false;
+    if (drawActive) {
+      drawActive = false;
+      drawLastPoint = null;
+    }
+  }
+  if (pressed && drawActive && drawCanvasMesh) {
+    // map right stick to UV on the canvas plane
+    var u = 0.5 + rx * 0.4;
+    var v = 0.5 + ry * 0.4;
+    var x = u * drawCanvasW;
+    var y = v * drawCanvasH;
+    if (drawLastPoint) {
+      drawCanvasCtx.strokeStyle = drawColor;
+      drawCanvasCtx.lineWidth = 10;
+      drawCanvasCtx.lineCap = 'round';
+      drawCanvasCtx.lineJoin = 'round';
+      drawCanvasCtx.beginPath();
+      drawCanvasCtx.moveTo(drawLastPoint.x, drawLastPoint.y);
+      drawCanvasCtx.lineTo(x, y);
+      drawCanvasCtx.stroke();
+    } else {
+      drawCanvasCtx.fillStyle = drawColor;
+      drawCanvasCtx.beginPath();
+      drawCanvasCtx.arc(x, y, 6, 0, Math.PI * 2);
+      drawCanvasCtx.fill();
+    }
+    drawLastPoint = { x: x, y: y };
+    drawCanvasTexture.needsUpdate = true;
+  }
+}
+
+function updateDrawWorld(sceneTarget) {
+  if (currentActiveGame !== 'draw') return;
+  setDrawGazeTarget();
+  if (!drawCanvasMesh) makeDrawCanvas(sceneTarget);
+  handleDrawRightStick(sceneTarget);
+}
+
 function buildZombieEnvironment(sceneTarget) {
   sceneTarget.background = new THREE.Color(0x112211);
   sceneTarget.fog = new THREE.Fog(0x112211, 40, 180);
@@ -1478,6 +1647,8 @@ function updateHUD() {
     } else if (cookingState === 'serve') {
       setHudText('Неси бургер клиенту!');
     }
+  } else if (currentActiveGame === 'draw') {
+    setHudText('Рисовалка: выбери цвет и рисуй на холсте');
   }
 }
 
@@ -1646,6 +1817,10 @@ function updatePhysics(dt) {
     playerPos.y = 1.7;
     playerVelY = 0;
     isGrounded = true;
+  } else if (currentActiveGame === 'draw') {
+    playerPos.y = 1.7;
+    playerVelY = 0;
+    isGrounded = true;
   }
 
   if (sessionRef && (pcStreamActive || isPlaying) && !posSameAsWritten(playerPos.x, playerPos.y, playerPos.z, 0.05)) {
@@ -1674,6 +1849,8 @@ function initPCStreamScene() {
     buildRunEnvironment(pcScene);
   } else if (currentActiveGame === 'cooking') {
     buildCookingEnvironment(pcScene);
+  } else if (currentActiveGame === 'draw') {
+    buildDrawEnvironment(pcScene);
   } else {
     buildCityEnvironment(pcScene);
   }
@@ -1794,6 +1971,8 @@ function animatePC() {
     updateRun(0.016);
   } else if (currentActiveGame === 'cooking') {
     updateCookingWorld(pcScene, 0.016);
+  } else if (currentActiveGame === 'draw') {
+    updateDrawWorld(pcScene);
   }
   updateHUD();
 
@@ -1844,6 +2023,8 @@ function initVR3D() {
     buildZombieEnvironment(scene);
   } else if (currentActiveGame === 'cooking') {
     buildCookingEnvironment(scene);
+  } else if (currentActiveGame === 'draw') {
+    buildDrawEnvironment(scene);
   } else {
     buildCityEnvironment(scene);
   }
@@ -1928,6 +2109,8 @@ function animateVR() {
     updateBullets(0.016);
   } else if (currentActiveGame === 'cooking') {
     updateCookingWorld(scene, 0.016);
+  } else if (currentActiveGame === 'draw') {
+    updateDrawWorld(scene);
   }
   updateHUD();
 
