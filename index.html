@@ -227,6 +227,10 @@ var drawActive = false;
 var drawBrush = null;
 var drawBrushU = 0.5;
 var drawBrushV = 0.5;
+var drawColorName = 'жёлтый';
+var drawSelectedSwatch = null;
+var drawSwatchLabel = null;
+var drawColorNames = [];
 
 function posSameAsWritten(x, y, z, eps) {
   if (eps === undefined) eps = 0.05;
@@ -1362,15 +1366,15 @@ function makeDrawCanvas(sceneTarget) {
   drawCanvasEl.width = drawCanvasW;
   drawCanvasEl.height = drawCanvasH;
   drawCanvasCtx = drawCanvasEl.getContext('2d');
-  drawCanvasCtx.fillStyle = '#f5f0e6';
+  drawCanvasCtx.fillStyle = '#f7f2e7';
   drawCanvasCtx.fillRect(0, 0, drawCanvasW, drawCanvasH);
   drawCanvasTexture = new THREE.CanvasTexture(drawCanvasEl);
   drawCanvasTexture.needsUpdate = true;
+  // Vertical easel: a plane standing up, facing the player (+Z).
   drawCanvasMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(5, 5),
+    new THREE.PlaneGeometry(6, 4),
     new THREE.MeshBasicMaterial({ map: drawCanvasTexture, side: THREE.DoubleSide })
   );
-  drawCanvasMesh.rotation.x = -Math.PI / 2;
   drawCanvasMesh.position.set(0, 2.6, -6);
   sceneTarget.add(drawCanvasMesh);
   drawLastPoint = null;
@@ -1391,27 +1395,49 @@ function buildDrawEnvironment(sceneTarget) {
   var back = new THREE.Mesh(new THREE.BoxGeometry(60, 10, 1.2), wallMat);
   back.position.set(0, 5, -14);
   sceneTarget.add(back);
-  var easel = new THREE.Mesh(new THREE.BoxGeometry(0.15, 4.5, 0.15), new THREE.MeshStandardMaterial({ color: 0x8a5a2a }));
-  easel.position.set(-3.2, 2.2, -3.5);
-  sceneTarget.add(easel);
-  var easel2 = new THREE.Mesh(new THREE.BoxGeometry(0.15, 4.5, 0.15), new THREE.MeshStandardMaterial({ color: 0x8a5a2a }));
-  easel2.position.set(3.2, 2.2, -3.5);
-  sceneTarget.add(easel2);
+  // Easel legs
+  var legMat = new THREE.MeshStandardMaterial({ color: 0x8a5a2a });
+  var leg1 = new THREE.Mesh(new THREE.BoxGeometry(0.15, 4.0, 0.15), legMat);
+  leg1.position.set(-2.8, 2.0, -5.5);
+  sceneTarget.add(leg1);
+  var leg2 = new THREE.Mesh(new THREE.BoxGeometry(0.15, 4.0, 0.15), legMat);
+  leg2.position.set(2.8, 2.0, -5.5);
+  sceneTarget.add(leg2);
+  var leg3 = new THREE.Mesh(new THREE.BoxGeometry(0.15, 4.0, 0.15), legMat);
+  leg3.position.set(0, 2.0, -6.6);
+  sceneTarget.add(leg3);
   makeDrawCanvas(sceneTarget);
+
   drawPalette = [];
   var cols = ['#e74c3c', '#e67e22', '#f1c40f', '#2ecc71', '#3498db', '#9b59b6', '#ffffff', '#000000'];
+  var names = ['красный', 'оранжевый', 'жёлтый', 'зелёный', 'синий', 'фиолетовый', 'белый', 'чёрный'];
   drawColors = cols;
+  drawColorNames = names;
+  drawColor = drawColors[0];
+  drawColorName = drawColorNames[0];
+  // Swatches on a table to the left, in a row facing the player.
   for (var i = 0; i < cols.length; i++) {
     var sw = new THREE.Mesh(
       new THREE.CylinderGeometry(0.32, 0.32, 0.2, 20),
       new THREE.MeshStandardMaterial({ color: new THREE.Color(cols[i]) })
     );
-    sw.position.set(-3.5 + i * 1.0, 1.1, -2.6);
+    sw.position.set(-4.0 + i * 1.0, 1.1, -1.5);
     sceneTarget.add(sw);
-    drawPalette.push({ mesh: sw, color: cols[i], x: sw.position.x, z: sw.position.z });
+    drawPalette.push({ mesh: sw, color: cols[i], name: names[i], x: sw.position.x, z: sw.position.z });
   }
-  var label = makeLabel('РИСОВАЛКА: подойди к холсту, правый стик - рисование', null, 40, 6.0);
-  label.position.set(0, 4.5, -8);
+  // A "current color" indicator that glows with the chosen color.
+  drawSelectedSwatch = new THREE.Mesh(
+    new THREE.SphereGeometry(0.35, 20, 20),
+    new THREE.MeshStandardMaterial({ color: new THREE.Color(drawColor), emissive: new THREE.Color(drawColor), emissiveIntensity: 0.7 })
+  );
+  drawSelectedSwatch.position.set(-4.0 - 0.7, 1.5, -1.5);
+  sceneTarget.add(drawSelectedSwatch);
+  drawSwatchLabel = makeLabel('Цвет: ' + drawColorName, null, 44, 2.6);
+  drawSwatchLabel.position.set(-4.0 - 0.7, 2.4, -1.5);
+  sceneTarget.add(drawSwatchLabel);
+
+  var label = makeLabel('РИСОВАЛКА: выбери цвет слева, потом подойди к холсту и жми правый стик', null, 40, 7.0);
+  label.position.set(0, 5.2, -8);
   sceneTarget.add(label);
   targetQuaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'YXZ'));
   currentQuaternion.copy(targetQuaternion);
@@ -1426,15 +1452,36 @@ function setDrawGazeTarget() {
   if (currentActiveGame !== 'draw') return;
   var p = playerPos.clone();
   p.y = 1.4;
+  // Canvas: check you are standing in front of it (a box in front of the easel).
   if (drawCanvasMesh) {
-    var d = p.distanceTo(drawCanvasMesh.position);
-    if (d < 3.0) { drawGazeItem = 'canvas'; }
+    var dx = p.x - drawCanvasMesh.position.x;
+    var dz = p.z - drawCanvasMesh.position.z;
+    if (Math.abs(dx) < 3.2 && dz > -1.0 && dz < 4.5) {
+      drawGazeItem = 'canvas';
+    }
   }
   for (var i = 0; i < drawPalette.length; i++) {
     var sw = drawPalette[i];
     var d2 = p.distanceTo(new THREE.Vector3(sw.x, 1.1, sw.z));
     if (d2 < 1.6) { drawGazeItem = 'swatch'; drawGazeSwatch = sw; return; }
   }
+}
+
+// Convert where the player is looking into UV on the vertical canvas plane.
+function getDrawUVFromLook() {
+  if (!drawCanvasMesh) return null;
+  var canvasZ = drawCanvasMesh.position.z;
+  var dir = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+  if (Math.abs(dir.z) < 0.0001) return null;
+  var t = (canvasZ - playerPos.z) / dir.z;
+  if (t <= 0) return null;
+  var ix = playerPos.x + dir.x * t;
+  var iy = (playerPos.y + 0.1) + dir.y * t;
+  var halfW = 3.0, halfH = 2.0, cy = drawCanvasMesh.position.y;
+  var u = (ix + halfW) / (2 * halfW);
+  var v = (cy + halfH - iy) / (2 * halfH);
+  if (u < 0 || u > 1 || v < 0 || v > 1) return null;
+  return { u: u, v: v };
 }
 
 function handleDrawRightStick(sceneTarget) {
@@ -1453,11 +1500,22 @@ function handleDrawRightStick(sceneTarget) {
     drawRightStickPrev = true;
     if (drawGazeItem === 'swatch' && drawGazeSwatch) {
       drawColor = drawGazeSwatch.color;
-      setHudText('Цвет: ' + drawColor);
+      drawColorName = drawGazeSwatch.name;
+      if (drawSelectedSwatch) {
+        drawSelectedSwatch.material.color.set(drawColor);
+        drawSelectedSwatch.material.emissive.set(drawColor);
+      }
+      if (drawSwatchLabel) {
+        sceneTarget.remove(drawSwatchLabel);
+        drawSwatchLabel = makeLabel('Цвет: ' + drawColorName, null, 44, 2.6);
+        drawSwatchLabel.position.set(-4.0 - 0.7, 2.4, -1.5);
+        sceneTarget.add(drawSwatchLabel);
+      }
+      setHudText('Выбран цвет: ' + drawColorName);
     } else if (drawGazeItem === 'canvas') {
       drawActive = true;
       drawLastPoint = null;
-      setHudText('Рисуй! Правый стик - кисть');
+      setHudText('Рисуй! Смотри на холст и двигай головой');
     }
     return;
   }
@@ -1468,29 +1526,30 @@ function handleDrawRightStick(sceneTarget) {
       drawLastPoint = null;
     }
   }
-  if (pressed && drawActive && drawCanvasMesh) {
-    // map right stick to UV on the canvas plane
-    var u = 0.5 + rx * 0.4;
-    var v = 0.5 + ry * 0.4;
-    var x = u * drawCanvasW;
-    var y = v * drawCanvasH;
-    if (drawLastPoint) {
-      drawCanvasCtx.strokeStyle = drawColor;
-      drawCanvasCtx.lineWidth = 10;
-      drawCanvasCtx.lineCap = 'round';
-      drawCanvasCtx.lineJoin = 'round';
-      drawCanvasCtx.beginPath();
-      drawCanvasCtx.moveTo(drawLastPoint.x, drawLastPoint.y);
-      drawCanvasCtx.lineTo(x, y);
-      drawCanvasCtx.stroke();
-    } else {
-      drawCanvasCtx.fillStyle = drawColor;
-      drawCanvasCtx.beginPath();
-      drawCanvasCtx.arc(x, y, 6, 0, Math.PI * 2);
-      drawCanvasCtx.fill();
+  // While drawing, the brush follows your gaze (head movement), no stick needed.
+  if (drawActive && drawCanvasMesh) {
+    var uv = getDrawUVFromLook();
+    if (uv) {
+      var x = uv.u * drawCanvasW;
+      var y = (1 - uv.v) * drawCanvasH;
+      if (drawLastPoint) {
+        drawCanvasCtx.strokeStyle = drawColor;
+        drawCanvasCtx.lineWidth = 12;
+        drawCanvasCtx.lineCap = 'round';
+        drawCanvasCtx.lineJoin = 'round';
+        drawCanvasCtx.beginPath();
+        drawCanvasCtx.moveTo(drawLastPoint.x, drawLastPoint.y);
+        drawCanvasCtx.lineTo(x, y);
+        drawCanvasCtx.stroke();
+      } else {
+        drawCanvasCtx.fillStyle = drawColor;
+        drawCanvasCtx.beginPath();
+        drawCanvasCtx.arc(x, y, 7, 0, Math.PI * 2);
+        drawCanvasCtx.fill();
+      }
+      drawLastPoint = { x: x, y: y };
+      drawCanvasTexture.needsUpdate = true;
     }
-    drawLastPoint = { x: x, y: y };
-    drawCanvasTexture.needsUpdate = true;
   }
 }
 
