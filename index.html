@@ -1479,7 +1479,8 @@ function getDrawUVFromLook() {
   var iy = (playerPos.y + 0.1) + dir.y * t;
   var halfW = 3.0, halfH = 2.0, cy = drawCanvasMesh.position.y;
   var u = (ix + halfW) / (2 * halfW);
-  var v = (cy + halfH - iy) / (2 * halfH);
+  // Top of the world (iy = cy + halfH) maps to v=1 (top of canvas).
+  var v = (iy - cy + halfH) / (2 * halfH);
   if (u < 0 || u > 1 || v < 0 || v > 1) return null;
   return { u: u, v: v };
 }
