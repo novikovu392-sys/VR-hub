@@ -1405,6 +1405,8 @@ var beatBeatIndex = 0;
 var beatBPM = 120;
 var beatSpawnNext = true;
 var beatHitZoneZ = -3.0;
+var beatFallbackTimer = null;
+var beatFallbackTick = 0;
 
 function beatBuildEnvironment(sceneTarget) {
   sceneTarget.background = new THREE.Color(0x05030f);
@@ -1453,7 +1455,8 @@ function beatBuildEnvironment(sceneTarget) {
   playerPos.set(0, 1.7, 0);
   playerVelY = 0;
   isGrounded = true;
-  startBeatAudio();
+  beatStartFallback();
+  try { beatStartAudio(); } catch (e) { beatAudioCtx = null; }
 }
 
 function beatSpawnBlock() {
@@ -1502,6 +1505,20 @@ function beatUpdateWorld(sceneTarget, dt) {
   if (beatSpawnNext && Date.now() % 1000 > 0) {
     // handled by audio scheduler via beatOnBeat()
   }
+}
+
+// Fallback spawner so blocks keep coming even if audio can't start (e.g. mobile autoplay restrictions)
+function beatStartFallback() {
+  if (beatFallbackTimer) clearInterval(beatFallbackTimer);
+  beatFallbackTick = 0;
+  beatFallbackTimer = setInterval(function() {
+    if (currentActiveGame !== 'beat' || !beatActive) return;
+    beatFallbackTick++;
+    // Spawn roughly every beat (0.5s at 120bpm) with a small skip
+    if (beatFallbackTick % 2 === 0 && Math.random() < 0.85) {
+      beatSpawnBlock();
+    }
+  }, 500);
 }
 
 function beatOnBeat() {
@@ -1617,6 +1634,7 @@ function beatPlayStep(step, time) {
 
 function beatStopAudio() {
   if (beatSchedulerTimer) { clearInterval(beatSchedulerTimer); beatSchedulerTimer = null; }
+  if (beatFallbackTimer) { clearInterval(beatFallbackTimer); beatFallbackTimer = null; }
   if (beatAudioCtx) { try { beatAudioCtx.close(); } catch (e) {} beatAudioCtx = null; }
 }
 
