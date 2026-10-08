@@ -127,6 +127,11 @@
         <p>Подойди к холсту, жми правый стик и рисуй. Слева выбери цвет.</p>
         <button class="btn" onclick="launchGame('draw')">Запустить</button>
       </div>
+      <div class="game-card">
+        <h3>Бит-сейбер</h3>
+        <p>Блоки летят на тебя. Смотри на блок и жми правый стик, когда он в зоне.</p>
+        <button class="btn" onclick="launchGame('beat')">Запустить</button>
+      </div>
     </div>
     <div id="pc-view-container"><div id="pc-hud"></div></div>
   </div>
@@ -377,6 +382,9 @@ function launchGame(gameName) {
   } else if (gameName === 'draw') {
     playerPos.set(0, 1.7, 2);
     isGrounded = true;
+  } else if (gameName === 'beat') {
+    playerPos.set(0, 1.7, 0);
+    isGrounded = true;
   }
   // Hide the game selector once a game starts, so the view goes fullscreen.
   document.getElementById('pc-panel').classList.add('in-game');
@@ -394,6 +402,7 @@ function launchGame(gameName) {
 function exitGameFromPC() {
   pcGameActive = false;
   document.getElementById('pc-panel').classList.remove('in-game');
+  beatStopAudio();
   if (sessionRef) {
     sessionRef.update({ status: 'menu', game: null });
   }
@@ -1381,6 +1390,236 @@ function makeDrawCanvas(sceneTarget) {
   drawActive = false;
 }
 
+// ===== BEAT-SABER style game =====
+var beatBlocks = [];
+var beatGroup = null;
+var beatScore = 0;
+var beatCombo = 0;
+var beatMisses = 0;
+var beatActive = false;
+var beatGazeBlock = null;
+var beatAudioCtx = null;
+var beatSchedulerTimer = null;
+var beatNextNoteTime = 0;
+var beatBeatIndex = 0;
+var beatBPM = 120;
+var beatSpawnNext = true;
+var beatHitZoneZ = -3.0;
+
+function beatBuildEnvironment(sceneTarget) {
+  sceneTarget.background = new THREE.Color(0x05030f);
+  sceneTarget.fog = new THREE.Fog(0x05030f, 20, 120);
+  sceneTarget.add(new THREE.AmbientLight(0xffffff, 0.6));
+  var light = new THREE.DirectionalLight(0xff66ff, 1.0);
+  light.position.set(5, 30, 10);
+  sceneTarget.add(light);
+  var light2 = new THREE.DirectionalLight(0x00ffff, 0.6);
+  light2.position.set(-8, 10, -20);
+  sceneTarget.add(light2);
+  // Neon floor
+  var floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 60), new THREE.MeshStandardMaterial({ color: 0x0a0a1a, emissive: 0x111122, emissiveIntensity: 0.3 }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(0, 0, -25);
+  sceneTarget.add(floor);
+  // Side neon rails (corridor)
+  var railMat = new THREE.MeshBasicMaterial({ color: 0xff00ff });
+  var rail1 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 4, 60), railMat);
+  rail1.position.set(-4, 2, -25);
+  sceneTarget.add(rail1);
+  var rail2 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 4, 60), railMat);
+  rail2.position.set(4, 2, -25);
+  sceneTarget.add(rail2);
+  // Hit zone ring
+  beatHitZoneZ = -3.0;
+  var ring = new THREE.Mesh(
+    new THREE.TorusGeometry(3.2, 0.12, 12, 40),
+    new THREE.MeshBasicMaterial({ color: 0x00ffff })
+  );
+  ring.position.set(0, 1.7, beatHitZoneZ);
+  sceneTarget.add(ring);
+  beatGroup = sceneTarget;
+  beatBlocks = [];
+  beatScore = 0;
+  beatCombo = 0;
+  beatMisses = 0;
+  beatActive = true;
+  beatBeatIndex = 0;
+  beatSpawnNext = true;
+  var label = makeLabel('БИТ-СЕЙБЕР: смотри на блок и жми правый стик в зоне', null, 40, 6.0);
+  label.position.set(0, 5.0, -6);
+  sceneTarget.add(label);
+  targetQuaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'YXZ'));
+  currentQuaternion.copy(targetQuaternion);
+  playerPos.set(0, 1.7, 0);
+  playerVelY = 0;
+  isGrounded = true;
+  startBeatAudio();
+}
+
+function beatSpawnBlock() {
+  if (!beatGroup) return;
+  var lane = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
+  var colors = [0xff2d55, 0x00e5ff, 0xffd400, 0x00ff88];
+  var color = colors[Math.floor(Math.random() * colors.length)];
+  var geo = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+  var mat = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.8 });
+  var block = new THREE.Mesh(geo, mat);
+  block.position.set(lane * 2.2, 1.7, -38);
+  block.userData = { lane: lane, color: color, hit: false, miss: false };
+  beatGroup.add(block);
+  beatBlocks.push(block);
+}
+
+function beatUpdateWorld(sceneTarget, dt) {
+  if (currentActiveGame !== 'beat') return;
+  if (!beatActive) return;
+  // Move blocks toward the player (+Z), speed in units/sec
+  var speed = 14;
+  beatGazeBlock = null;
+  var p = playerPos.clone();
+  p.y = 1.4;
+  for (var i = beatBlocks.length - 1; i >= 0; i--) {
+    var b = beatBlocks[i];
+    b.position.z += speed * dt;
+    // Gaze detection: block near hit zone and in view
+    if (!b.userData.hit && !b.userData.miss) {
+      var dz = b.position.z - beatHitZoneZ;
+      if (Math.abs(dz) < 1.2 && Math.abs(b.position.x - p.x) < 2.0) {
+        beatGazeBlock = b;
+      }
+    }
+    // Missed: passed behind the player
+    if (b.position.z > 2.0 && !b.userData.hit && !b.userData.miss) {
+      b.userData.miss = true;
+      beatMisses++;
+      beatCombo = 0;
+      beatGroup.remove(b);
+      beatBlocks.splice(i, 1);
+      updateHUD();
+    }
+  }
+  // Spawn on beat
+  if (beatSpawnNext && Date.now() % 1000 > 0) {
+    // handled by audio scheduler via beatOnBeat()
+  }
+}
+
+function beatOnBeat() {
+  if (currentActiveGame !== 'beat' || !beatActive) return;
+  // Spawn a block each beat (with a little random skip)
+  if (Math.random() < 0.85) {
+    beatSpawnBlock();
+  }
+}
+
+function beatHit() {
+  if (!beatGazeBlock) return;
+  var b = beatGazeBlock;
+  if (b.userData.hit || b.userData.miss) return;
+  b.userData.hit = true;
+  beatScore += 100;
+  beatCombo++;
+  // Little pop effect
+  var burst = new THREE.Mesh(
+    new THREE.SphereGeometry(0.5, 12, 12),
+    new THREE.MeshBasicMaterial({ color: b.userData.color })
+  );
+  burst.position.copy(b.position);
+  beatGroup.add(burst);
+  setTimeout(function() { if (beatGroup) beatGroup.remove(burst); }, 300);
+  beatGroup.remove(b);
+  var idx = beatBlocks.indexOf(b);
+  if (idx >= 0) beatBlocks.splice(idx, 1);
+  beatGazeBlock = null;
+  setHudText('Очки: ' + beatScore + '  Комбо: ' + beatCombo);
+}
+
+function beatStartAudio() {
+  if (beatAudioCtx) { try { beatAudioCtx.close(); } catch (e) {} }
+  var AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  beatAudioCtx = new AC();
+  if (beatAudioCtx.state === 'suspended') beatAudioCtx.resume();
+  beatNextNoteTime = beatAudioCtx.currentTime + 0.1;
+  beatBeatIndex = 0;
+  if (beatSchedulerTimer) clearInterval(beatSchedulerTimer);
+  var self = this;
+  beatSchedulerTimer = setInterval(function() {
+    if (currentActiveGame !== 'beat' || !beatActive) return;
+    var secondsPerBeat = 60.0 / beatBPM;
+    while (beatNextNoteTime < beatAudioCtx.currentTime + 0.12) {
+      beatPlayStep(beatBeatIndex, beatNextNoteTime);
+      beatBeatIndex++;
+      beatNextNoteTime += secondsPerBeat;
+    }
+  }, 25);
+}
+
+function beatPlayStep(step, time) {
+  if (!beatAudioCtx) return;
+  var t = time;
+  var kick = step % 4 === 0;
+  var snare = step % 4 === 2;
+  var hat = step % 2 === 1;
+  var bassNote = [55, 55, 65.4, 73.4][step % 4];
+  // Kick
+  if (kick) {
+    var o = beatAudioCtx.createOscillator();
+    var g = beatAudioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(150, t);
+    o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+    g.gain.setValueAtTime(0.9, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    o.connect(g); g.connect(beatAudioCtx.destination);
+    o.start(t); o.stop(t + 0.2);
+  }
+  // Snare (noise)
+  if (snare) {
+    var bufferSize = beatAudioCtx.sampleRate * 0.15;
+    var buffer = beatAudioCtx.createBuffer(1, bufferSize, beatAudioCtx.sampleRate);
+    var data = buffer.getChannelData(0);
+    for (var i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+    var src = beatAudioCtx.createBufferSource();
+    src.buffer = buffer;
+    var gn = beatAudioCtx.createGain();
+    gn.gain.setValueAtTime(0.5, t);
+    gn.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    src.connect(gn); gn.connect(beatAudioCtx.destination);
+    src.start(t);
+  }
+  // Hi-hat
+  if (hat) {
+    var bufferSize2 = beatAudioCtx.sampleRate * 0.05;
+    var buffer2 = beatAudioCtx.createBuffer(1, bufferSize2, beatAudioCtx.sampleRate);
+    var data2 = buffer2.getChannelData(0);
+    for (var i2 = 0; i2 < bufferSize2; i2++) data2[i2] = (Math.random() * 2 - 1) * Math.pow(1 - i2 / bufferSize2, 3);
+    var src2 = beatAudioCtx.createBufferSource();
+    src2.buffer = buffer2;
+    var gn2 = beatAudioCtx.createGain();
+    gn2.gain.setValueAtTime(0.2, t);
+    gn2.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+    src2.connect(gn2); gn2.connect(beatAudioCtx.destination);
+    src2.start(t);
+  }
+  // Bass
+  var o2 = beatAudioCtx.createOscillator();
+  var g2 = beatAudioCtx.createGain();
+  o2.type = 'sawtooth';
+  o2.frequency.setValueAtTime(bassNote, t);
+  g2.gain.setValueAtTime(0.18, t);
+  g2.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+  o2.connect(g2); g2.connect(beatAudioCtx.destination);
+  o2.start(t); o2.stop(t + 0.22);
+  // Trigger a block spawn on the downbeat
+  if (step % 4 === 0) beatOnBeat();
+}
+
+function beatStopAudio() {
+  if (beatSchedulerTimer) { clearInterval(beatSchedulerTimer); beatSchedulerTimer = null; }
+  if (beatAudioCtx) { try { beatAudioCtx.close(); } catch (e) {} beatAudioCtx = null; }
+}
+
 function buildDrawEnvironment(sceneTarget) {
   sceneTarget.background = new THREE.Color(0x1a1a2e);
   sceneTarget.fog = new THREE.Fog(0x1a1a2e, 30, 120);
@@ -1817,6 +2056,8 @@ function handleRightStick() {
       spaceGravity = !spaceGravity;
       setHudText(spaceGravity ? 'Гравитация: ВКЛ' : 'Гравитация: ВЫКЛ');
       setTimeout(function() { updateHUD(); }, 1500);
+    } else if (currentActiveGame === 'beat') {
+      beatHit();
     } else if (currentActiveGame !== 'underwater') {
       if (isGrounded) {
         playerVelY = (currentActiveGame === 'roofrun') ? 14 : 9;
@@ -1918,6 +2159,8 @@ function initPCStreamScene() {
     buildCookingEnvironment(pcScene);
   } else if (currentActiveGame === 'draw') {
     buildDrawEnvironment(pcScene);
+  } else if (currentActiveGame === 'beat') {
+    beatBuildEnvironment(pcScene);
   } else {
     buildCityEnvironment(pcScene);
   }
@@ -2040,6 +2283,8 @@ function animatePC() {
     updateCookingWorld(pcScene, 0.016);
   } else if (currentActiveGame === 'draw') {
     updateDrawWorld(pcScene);
+  } else if (currentActiveGame === 'beat') {
+    beatUpdateWorld(pcScene, 0.016);
   }
   updateHUD();
 
@@ -2067,6 +2312,7 @@ function startVRGameEngine() {
 
 function stopVRGameEngine() {
   isPlaying = false;
+  beatStopAudio();
   document.getElementById('vr-container').style.display = 'none';
   document.getElementById('ui-layer').style.display = 'flex';
   document.getElementById('step-role').style.display = 'none';
@@ -2092,6 +2338,8 @@ function initVR3D() {
     buildCookingEnvironment(scene);
   } else if (currentActiveGame === 'draw') {
     buildDrawEnvironment(scene);
+  } else if (currentActiveGame === 'beat') {
+    beatBuildEnvironment(scene);
   } else {
     buildCityEnvironment(scene);
   }
@@ -2178,6 +2426,8 @@ function animateVR() {
     updateCookingWorld(scene, 0.016);
   } else if (currentActiveGame === 'draw') {
     updateDrawWorld(scene);
+  } else if (currentActiveGame === 'beat') {
+    beatUpdateWorld(scene, 0.016);
   }
   updateHUD();
 
