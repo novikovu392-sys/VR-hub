@@ -56,8 +56,9 @@
     <h1>Ожидание игры</h1>
     <p>Введите 4-значный код с экрана ПК:</p>
     <input type="text" id="joinCodeInput" maxlength="4" placeholder="0000"><br>
-    <button class="btn" onclick="joinSession()">Подключиться</button>
+    <button class="btn" onclick="joinSession()">Подключиться</button><br>
     <button class="btn btn-sec" onclick="phoneGoFullscreen()" id="phoneFsBtn">Полный экран</button>
+    <button class="btn btn-sec" onclick="toggleStereoMode()" id="stereoToggleWaitBtn" style="margin-top:8px;">Стерео: ВКЛ</button>
     <p id="phone-status" style="margin-top:15px; color:#f1c40f;"></p>
   </div>
 </div>
@@ -188,17 +189,23 @@ let isPlaying = false;
 let stereoEnabled = true;
 function toggleStereoMode() {
   stereoEnabled = !stereoEnabled;
-  var btn = document.getElementById('stereo-toggle-btn');
+  var btn1 = document.getElementById('stereo-toggle-btn');
+  var btn2 = document.getElementById('stereoToggleWaitBtn');
   var leftV = document.getElementById('left-view');
   var rightV = document.getElementById('right-view');
-  if (stereoEnabled) {
-    if (btn) btn.textContent = 'Стерео: ВКЛ';
-    if (leftV) { leftV.style.width = '50%'; leftV.style.display = 'block'; }
-    if (rightV) { rightV.style.display = 'block'; }
-  } else {
-    if (btn) btn.textContent = 'Стерео: ВЫКЛ';
-    if (leftV) { leftV.style.width = '100%'; leftV.style.display = 'block'; }
-    if (rightV) { rightV.style.display = 'none'; }
+  var txt = stereoEnabled ? 'Стерео: ВКЛ' : 'Стерео: ВЫКЛ';
+  if (btn1) btn1.textContent = txt;
+  if (btn2) btn2.textContent = txt;
+  if (leftV && rightV) {
+    if (stereoEnabled) {
+      leftV.style.width = '50%';
+      leftV.style.display = 'block';
+      rightV.style.display = 'block';
+    } else {
+      leftV.style.width = '100%';
+      leftV.style.display = 'block';
+      rightV.style.display = 'none';
+    }
   }
 }
 let pcStreamActive = false;
