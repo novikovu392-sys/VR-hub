@@ -132,6 +132,16 @@
         <p>Блоки летят на тебя. Смотри на блок и жми правый стик, когда он в зоне.</p>
         <button class="btn" onclick="launchGame('beat')">Запустить</button>
       </div>
+      <div class="game-card">
+        <h3>Рыбалка</h3>
+        <p>Забрось удочку стиком, жди поклёвку и подсекай в нужный момент.</p>
+        <button class="btn" onclick="launchGame('fishing')">Запустить</button>
+      </div>
+      <div class="game-card">
+        <h3>Понг VR</h3>
+        <p>Отбивай шар ракеткой взглядом. Правый стик — подача.</p>
+        <button class="btn" onclick="launchGame('pong')">Запустить</button>
+      </div>
     </div>
     <div id="pc-view-container"><div id="pc-hud"></div></div>
   </div>
@@ -384,6 +394,12 @@ function launchGame(gameName) {
     isGrounded = true;
   } else if (gameName === 'beat') {
     playerPos.set(0, 1.7, 0);
+    isGrounded = true;
+  } else if (gameName === 'fishing') {
+    playerPos.set(0, 1.7, 8);
+    isGrounded = true;
+  } else if (gameName === 'pong') {
+    playerPos.set(0, 1.7, 6);
     isGrounded = true;
   }
   // Hide the game selector once a game starts, so the view goes fullscreen.
@@ -1447,7 +1463,7 @@ function beatBuildEnvironment(sceneTarget) {
   beatActive = true;
   beatBeatIndex = 0;
   beatSpawnNext = true;
-  var label = makeLabel('БИТ-СЕЙБЕР: смотри на блок и жми правый стик в зоне', null, 40, 6.0);
+  var label = makeLabel('БИТ-СЕЙБЕР: куб в зоне — жми правый стик, с любого места', null, 40, 6.0);
   label.position.set(0, 5.0, -6);
   sceneTarget.add(label);
   targetQuaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'YXZ'));
@@ -1479,16 +1495,17 @@ function beatUpdateWorld(sceneTarget, dt) {
   // Move blocks toward the player (+Z), speed in units/sec
   var speed = 14;
   beatGazeBlock = null;
-  var p = playerPos.clone();
-  p.y = 1.4;
   for (var i = beatBlocks.length - 1; i >= 0; i--) {
     var b = beatBlocks[i];
     b.position.z += speed * dt;
-    // Gaze detection: block near hit zone and in view
+    // Gaze detection: ANY block near the hit zone is targetable,
+    // regardless of its lane — smash side cubes without moving
     if (!b.userData.hit && !b.userData.miss) {
-      var dz = b.position.z - beatHitZoneZ;
-      if (Math.abs(dz) < 1.2 && Math.abs(b.position.x - p.x) < 2.0) {
-        beatGazeBlock = b;
+      var dz = Math.abs(b.position.z - beatHitZoneZ);
+      if (dz < 1.2) {
+        if (!beatGazeBlock || dz < Math.abs(beatGazeBlock.position.z - beatHitZoneZ)) {
+          beatGazeBlock = b;
+        }
       }
     }
     // Missed: passed behind the player
@@ -1636,6 +1653,318 @@ function beatStopAudio() {
   if (beatSchedulerTimer) { clearInterval(beatSchedulerTimer); beatSchedulerTimer = null; }
   if (beatFallbackTimer) { clearInterval(beatFallbackTimer); beatFallbackTimer = null; }
   if (beatAudioCtx) { try { beatAudioCtx.close(); } catch (e) {} beatAudioCtx = null; }
+}
+
+// ===== FISHING game =====
+var fishingState = 'idle'; // idle | cast | wait | bite | catch
+var fishingTimer = 0;
+var fishingBiteAt = 0;
+var fishingScore = 0;
+var fishingCaught = 0;
+var fishingStatusText = 'Рыбалка: жми правый стик — заброс';
+var fishingBobber = null;
+var fishingIndicator = null;
+var fishingGroup = null;
+var fishingFishNames = ['карась','окунь','лещ','щука','сом','золотая рыбка'];
+
+function buildFishingEnvironment(sceneTarget) {
+  sceneTarget.background = new THREE.Color(0x87ceeb);
+  sceneTarget.fog = new THREE.Fog(0x87ceeb, 40, 150);
+  sceneTarget.add(new THREE.AmbientLight(0xffffff, 0.9));
+  var sun = new THREE.DirectionalLight(0xfff2cc, 1.0);
+  sun.position.set(10, 30, 10);
+  sceneTarget.add(sun);
+
+  // Water
+  var water = new THREE.Mesh(
+    new THREE.PlaneGeometry(120, 120),
+    new THREE.MeshStandardMaterial({ color: 0x2e7db4, roughness: 0.2, metalness: 0.4 })
+  );
+  water.rotation.x = -Math.PI / 2;
+  water.position.set(0, 0, -20);
+  sceneTarget.add(water);
+
+  // Dock (player stands here)
+  var dock = new THREE.Mesh(
+    new THREE.BoxGeometry(6, 0.4, 8),
+    new THREE.MeshStandardMaterial({ color: 0x8b5a2b })
+  );
+  dock.position.set(0, 0.2, 10);
+  sceneTarget.add(dock);
+  var dockLegs = new THREE.MeshStandardMaterial({ color: 0x6b4423 });
+  for (var li = 0; li < 4; li++) {
+    var leg = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2, 0.3), dockLegs);
+    leg.position.set((li % 2 === 0 ? -2.5 : 2.5), -0.8, (li < 2 ? 7 : 13));
+    sceneTarget.add(leg);
+  }
+
+  // Bobber
+  fishingBobber = new THREE.Mesh(
+    new THREE.SphereGeometry(0.25, 12, 12),
+    new THREE.MeshStandardMaterial({ color: 0xff3333, emissive: 0x550000 })
+  );
+  fishingBobber.position.set(0, 0.15, 4);
+  fishingBobber.visible = false;
+  sceneTarget.add(fishingBobber);
+
+  // Bite indicator (!)
+  fishingIndicator = new THREE.Mesh(
+    new THREE.SphereGeometry(0.5, 12, 12),
+    new THREE.MeshBasicMaterial({ color: 0xffff00 })
+  );
+  fishingIndicator.visible = false;
+  sceneTarget.add(fishingIndicator);
+
+  // Rod (simple line from player toward bobber)
+  var rodGeo = new THREE.CylinderGeometry(0.03, 0.05, 3, 6);
+  var rod = new THREE.Mesh(rodGeo, new THREE.MeshStandardMaterial({ color: 0x333333 }));
+  rod.position.set(0.4, 1.6, 6.5);
+  rod.rotation.x = 1.1;
+  sceneTarget.add(rod);
+
+  fishingGroup = sceneTarget;
+  fishingState = 'idle';
+  fishingScore = 0;
+  fishingCaught = 0;
+  fishingStatusText = 'Рыбалка: жми правый стик — заброс';
+  targetQuaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'YXZ'));
+  currentQuaternion.copy(targetQuaternion);
+  playerPos.set(0, 1.7, 8);
+  playerVelY = 0;
+  isGrounded = true;
+}
+
+function fishingAction() {
+  if (currentActiveGame !== 'fishing') return;
+  if (fishingState === 'idle') {
+    // Cast
+    var bx = (Math.random() * 6 - 3);
+    var bz = 1 + Math.random() * 4;
+    fishingBobber.position.set(bx, 0.15, bz);
+    fishingBobber.visible = true;
+    fishingState = 'wait';
+    fishingTimer = 0;
+    fishingBiteAt = 2000 + Math.random() * 5000; // bite after 2-7s
+    fishingStatusText = 'Ждём поклёвку...';
+  } else if (fishingState === 'bite') {
+    // Hooked!
+    fishingState = 'catch';
+    fishingTimer = 0;
+    var rare = Math.random() < 0.08;
+    var name = rare ? 'золотая рыбка' : fishingFishNames[Math.floor(Math.random() * 5)];
+    var pts = rare ? 500 : 100;
+    fishingScore += pts;
+    fishingCaught++;
+    fishingStatusText = 'Поймал: ' + name + ' (+' + pts + ')';
+    if (fishingIndicator) fishingIndicator.visible = false;
+    if (fishingBobber) fishingBobber.position.y = 0.15;
+  } else if (fishingState === 'wait') {
+    // Reel in early
+    fishingBobber.visible = false;
+    fishingState = 'idle';
+    fishingStatusText = 'Рыбалка: жми правый стик — заброс';
+  }
+}
+
+function updateFishingWorld(sceneTarget, dt) {
+  if (currentActiveGame !== 'fishing' || !fishingGroup) return;
+  fishingTimer += dt * 1000;
+
+  if (fishingState === 'wait') {
+    // Bobber idle bob
+    fishingBobber.position.y = 0.15 + Math.sin(Date.now() * 0.003) * 0.05;
+    if (fishingTimer >= fishingBiteAt) {
+      fishingState = 'bite';
+      fishingTimer = 0;
+      fishingStatusText = 'ПОКЛЁВКА! Жми стик!';
+      if (fishingIndicator) {
+        fishingIndicator.position.copy(fishingBobber.position);
+        fishingIndicator.position.y = 1.2;
+        fishingIndicator.visible = true;
+      }
+    }
+  } else if (fishingState === 'bite') {
+    // Bobber dips, indicator pulses
+    fishingBobber.position.y = -0.1 + Math.sin(Date.now() * 0.02) * 0.08;
+    if (fishingIndicator) {
+      fishingIndicator.position.copy(fishingBobber.position);
+      fishingIndicator.position.y = 1.2 + Math.sin(Date.now() * 0.01) * 0.2;
+    }
+    if (fishingTimer > 1800) {
+      // Missed the bite
+      fishingState = 'idle';
+      fishingBobber.visible = false;
+      if (fishingIndicator) fishingIndicator.visible = false;
+      fishingStatusText = 'Сорвалась! Жми стик — заброс';
+    }
+  } else if (fishingState === 'catch') {
+    if (fishingTimer > 1200) {
+      fishingState = 'idle';
+      fishingBobber.visible = false;
+      fishingStatusText = 'Счёт: ' + fishingScore + ' | Жми стик — заброс';
+    }
+  }
+}
+
+// ===== PONG VR =====
+var pongPaddle = null;
+var pongAIPaddle = null;
+var pongBall = null;
+var pongGroup = null;
+var pongBallVel = new THREE.Vector3();
+var pongBallStuck = true;
+var pongScoreYou = 0;
+var pongScoreAI = 0;
+var pongRally = 0;
+var pongBaseSpeed = 10;
+
+function buildPongEnvironment(sceneTarget) {
+  sceneTarget.background = new THREE.Color(0x0a0a1e);
+  sceneTarget.fog = new THREE.Fog(0x0a0a1e, 30, 120);
+  sceneTarget.add(new THREE.AmbientLight(0xffffff, 0.6));
+  var l1 = new THREE.DirectionalLight(0x66aaff, 0.9);
+  l1.position.set(5, 20, 10);
+  sceneTarget.add(l1);
+
+  // Floor
+  var floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(14, 24),
+    new THREE.MeshStandardMaterial({ color: 0x111133, emissive: 0x0a0a2a, emissiveIntensity: 0.4 })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(0, 0, -4);
+  sceneTarget.add(floor);
+
+  // Walls
+  var wallMat = new THREE.MeshBasicMaterial({ color: 0x3355ff, transparent: true, opacity: 0.35 });
+  var wl = new THREE.Mesh(new THREE.BoxGeometry(0.3, 4, 24), wallMat);
+  wl.position.set(-5.2, 2, -4);
+  sceneTarget.add(wl);
+  var wr = new THREE.Mesh(new THREE.BoxGeometry(0.3, 4, 24), wallMat);
+  wr.position.set(5.2, 2, -4);
+  sceneTarget.add(wr);
+
+  // Center line
+  var mid = new THREE.Mesh(
+    new THREE.PlaneGeometry(10, 0.1),
+    new THREE.MeshBasicMaterial({ color: 0x6666aa })
+  );
+  mid.rotation.x = -Math.PI / 2;
+  mid.position.set(0, 0.02, -4);
+  sceneTarget.add(mid);
+
+  // Player paddle
+  pongPaddle = new THREE.Mesh(
+    new THREE.BoxGeometry(2.4, 1.6, 0.3),
+    new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00aa55, emissiveIntensity: 0.6 })
+  );
+  pongPaddle.position.set(0, 1.7, 0);
+  sceneTarget.add(pongPaddle);
+
+  // AI paddle
+  pongAIPaddle = new THREE.Mesh(
+    new THREE.BoxGeometry(2.4, 1.6, 0.3),
+    new THREE.MeshStandardMaterial({ color: 0xff4466, emissive: 0xaa2233, emissiveIntensity: 0.6 })
+  );
+  pongAIPaddle.position.set(0, 1.7, -8);
+  sceneTarget.add(pongAIPaddle);
+
+  // Ball
+  pongBall = new THREE.Mesh(
+    new THREE.SphereGeometry(0.4, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0xffffff })
+  );
+  pongBall.position.set(0, 1.7, 0.8);
+  sceneTarget.add(pongBall);
+
+  pongGroup = sceneTarget;
+  pongScoreYou = 0;
+  pongScoreAI = 0;
+  pongRally = 0;
+  pongBallStuck = true;
+  pongBallVel.set(0, 0, 0);
+  targetQuaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'YXZ'));
+  currentQuaternion.copy(targetQuaternion);
+  playerPos.set(0, 1.7, 6);
+  playerVelY = 0;
+  isGrounded = true;
+}
+
+function pongServe() {
+  if (currentActiveGame !== 'pong' || !pongBallStuck) return;
+  pongBallStuck = false;
+  pongRally = 0;
+  var dir = (Math.random() < 0.5 ? -1 : 1) * (3 + Math.random() * 3);
+  pongBallVel.set(dir, 0, -pongBaseSpeed);
+  pongBall.position.set(pongPaddle.position.x, 1.7, pongPaddle.position.z - 0.8);
+}
+
+function pongResetBall(playerScored) {
+  if (playerScored) { pongScoreYou++; } else { pongScoreAI++; }
+  pongBallStuck = true;
+  pongRally = 0;
+  pongBall.position.set(pongPaddle.position.x, 1.7, pongPaddle.position.z - 0.8);
+  pongBallVel.set(0, 0, 0);
+}
+
+function updatePongWorld(sceneTarget, dt) {
+  if (currentActiveGame !== 'pong' || !pongGroup) return;
+
+  // Player paddle follows gaze X
+  var fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(currentQuaternion);
+  var paddleZ = pongPaddle.position.z;
+  if (Math.abs(fwd.z) > 0.05) {
+    var t = (paddleZ - playerPos.z) / fwd.z;
+    if (t > 0) {
+      var gx = playerPos.x + fwd.x * t;
+      pongPaddle.position.x = Math.max(-4, Math.min(4, gx));
+    }
+  }
+
+  if (pongBallStuck) {
+    pongBall.position.set(pongPaddle.position.x, 1.7, pongPaddle.position.z - 0.8);
+    return;
+  }
+
+  // Move ball
+  pongBall.position.x += pongBallVel.x * dt;
+  pongBall.position.z += pongBallVel.z * dt;
+
+  // Wall bounce
+  if (pongBall.position.x < -4.8) { pongBall.position.x = -4.8; pongBallVel.x = Math.abs(pongBallVel.x); }
+  if (pongBall.position.x > 4.8) { pongBall.position.x = 4.8; pongBallVel.x = -Math.abs(pongBallVel.x); }
+
+  // Player paddle bounce
+  if (pongBallVel.z > 0 && pongBall.position.z >= pongPaddle.position.z - 0.3 && pongBall.position.z < pongPaddle.position.z + 0.6) {
+    if (Math.abs(pongBall.position.x - pongPaddle.position.x) < 1.5) {
+      pongBall.position.z = pongPaddle.position.z - 0.3;
+      pongBallVel.z = -Math.abs(pongBallVel.z) * 1.06;
+      pongBallVel.x += (pongBall.position.x - pongPaddle.position.x) * 3;
+      pongRally++;
+    }
+  }
+
+  // AI paddle
+  var aiSpeed = 4 + pongRally * 0.8;
+  var dx = pongBall.position.x - pongAIPaddle.position.x;
+  if (Math.abs(dx) > 0.1) {
+    pongAIPaddle.position.x += Math.sign(dx) * Math.min(Math.abs(dx), aiSpeed * dt);
+  }
+  pongAIPaddle.position.x = Math.max(-4, Math.min(4, pongAIPaddle.position.x));
+
+  // AI paddle bounce
+  if (pongBallVel.z < 0 && pongBall.position.z <= pongAIPaddle.position.z + 0.3 && pongBall.position.z > pongAIPaddle.position.z - 0.6) {
+    if (Math.abs(pongBall.position.x - pongAIPaddle.position.x) < 1.5) {
+      pongBall.position.z = pongAIPaddle.position.z + 0.3;
+      pongBallVel.z = Math.abs(pongBallVel.z) * 1.06;
+      pongBallVel.x += (pongBall.position.x - pongAIPaddle.position.x) * 3;
+      pongRally++;
+    }
+  }
+
+  // Score
+  if (pongBall.position.z > 3) { pongResetBall(true); }
+  if (pongBall.position.z < -11) { pongResetBall(false); }
 }
 
 function buildDrawEnvironment(sceneTarget) {
@@ -1973,6 +2302,10 @@ function updateHUD() {
     }
   } else if (currentActiveGame === 'draw') {
     setHudText('Рисовалка: выбери цвет и рисуй на холсте');
+  } else if (currentActiveGame === 'fishing') {
+    setHudText(fishingStatusText);
+  } else if (currentActiveGame === 'pong') {
+    setHudText('Понг: ты ' + pongScoreYou + ' : ' + pongScoreAI + ' ИИ. Правый стик — подача');
   }
 }
 
@@ -2076,6 +2409,10 @@ function handleRightStick() {
       setTimeout(function() { updateHUD(); }, 1500);
     } else if (currentActiveGame === 'beat') {
       beatHit();
+    } else if (currentActiveGame === 'fishing') {
+      fishingAction();
+    } else if (currentActiveGame === 'pong') {
+      pongServe();
     } else if (currentActiveGame !== 'underwater') {
       if (isGrounded) {
         playerVelY = (currentActiveGame === 'roofrun') ? 14 : 9;
@@ -2179,6 +2516,10 @@ function initPCStreamScene() {
     buildDrawEnvironment(pcScene);
   } else if (currentActiveGame === 'beat') {
     beatBuildEnvironment(pcScene);
+  } else if (currentActiveGame === 'fishing') {
+    buildFishingEnvironment(pcScene);
+  } else if (currentActiveGame === 'pong') {
+    buildPongEnvironment(pcScene);
   } else {
     buildCityEnvironment(pcScene);
   }
@@ -2303,6 +2644,10 @@ function animatePC() {
     updateDrawWorld(pcScene);
   } else if (currentActiveGame === 'beat') {
     beatUpdateWorld(pcScene, 0.016);
+  } else if (currentActiveGame === 'fishing') {
+    updateFishingWorld(pcScene, 0.016);
+  } else if (currentActiveGame === 'pong') {
+    updatePongWorld(pcScene, 0.016);
   }
   updateHUD();
 
@@ -2358,6 +2703,10 @@ function initVR3D() {
     buildDrawEnvironment(scene);
   } else if (currentActiveGame === 'beat') {
     beatBuildEnvironment(scene);
+  } else if (currentActiveGame === 'fishing') {
+    buildFishingEnvironment(scene);
+  } else if (currentActiveGame === 'pong') {
+    buildPongEnvironment(scene);
   } else {
     buildCityEnvironment(scene);
   }
@@ -2446,6 +2795,10 @@ function animateVR() {
     updateDrawWorld(scene);
   } else if (currentActiveGame === 'beat') {
     beatUpdateWorld(scene, 0.016);
+  } else if (currentActiveGame === 'fishing') {
+    updateFishingWorld(scene, 0.016);
+  } else if (currentActiveGame === 'pong') {
+    updatePongWorld(scene, 0.016);
   }
   updateHUD();
 
