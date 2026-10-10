@@ -1439,14 +1439,18 @@ function beatBuildEnvironment(sceneTarget) {
   floor.rotation.x = -Math.PI / 2;
   floor.position.set(0, 0, -25);
   sceneTarget.add(floor);
-  // Side neon rails (corridor)
+  // Side neon rails (corridor, 2 lanes)
   var railMat = new THREE.MeshBasicMaterial({ color: 0xff00ff });
   var rail1 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 4, 60), railMat);
-  rail1.position.set(-4, 2, -25);
+  rail1.position.set(-2.2, 2, -25);
   sceneTarget.add(rail1);
   var rail2 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 4, 60), railMat);
-  rail2.position.set(4, 2, -25);
+  rail2.position.set(2.2, 2, -25);
   sceneTarget.add(rail2);
+  // Center divider between the two lanes
+  var divider = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 60), new THREE.MeshBasicMaterial({ color: 0xff00ff }));
+  divider.position.set(0, 0.05, -25);
+  sceneTarget.add(divider);
   // Hit zone ring
   beatHitZoneZ = -3.0;
   var ring = new THREE.Mesh(
@@ -1477,13 +1481,13 @@ function beatBuildEnvironment(sceneTarget) {
 
 function beatSpawnBlock() {
   if (!beatGroup) return;
-  var lane = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
+  var lane = Math.floor(Math.random() * 2); // 0 or 1 (two lanes like the original)
   var colors = [0xff2d55, 0x00e5ff, 0xffd400, 0x00ff88];
   var color = colors[Math.floor(Math.random() * colors.length)];
   var geo = new THREE.BoxGeometry(1.2, 1.2, 1.2);
   var mat = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.8 });
   var block = new THREE.Mesh(geo, mat);
-  block.position.set(lane * 2.2, 1.7, -38);
+  block.position.set(lane === 0 ? -1.1 : 1.1, 1.7, -38);
   block.userData = { lane: lane, color: color, hit: false, miss: false };
   beatGroup.add(block);
   beatBlocks.push(block);
