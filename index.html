@@ -142,6 +142,11 @@
         <p>Отбивай шар ракеткой взглядом. Правый стик — подача.</p>
         <button class="btn" onclick="launchGame('pong')">Запустить</button>
       </div>
+      <div class="game-card">
+        <h3>Фрут-ниндзя</h3>
+        <p>Фрукты подлетают к тебе. Смотри на фрукт и жми правый стик, чтобы разрезать. Бомбы нельзя!</p>
+        <button class="btn" onclick="launchGame('fruit')">Запустить</button>
+      </div>
     </div>
     <div id="pc-view-container"><div id="pc-hud"></div></div>
   </div>
@@ -150,6 +155,7 @@
 <div id="vr-container">
   <div id="left-view"><div class="vr-hud" id="left-hud"></div></div>
   <div id="right-view"><div class="vr-hud" id="right-hud"></div></div>
+  <button id="stereo-toggle-btn" onclick="toggleStereoMode()" style="position:absolute; bottom:15px; left:50%; transform:translateX(-50%); z-index:200; background:rgba(0,0,0,0.8); color:#f1c40f; border:1px solid #f1c40f; padding:8px 16px; border-radius:8px; font-weight:bold; font-size:14px; cursor:pointer;">Стерео: ВКЛ</button>
   <div id="fs-prompt" style="display:none; position:absolute; top:0; left:0; right:0; bottom:0; z-index:300; background:rgba(0,0,0,0.75); align-items:center; justify-content:center; flex-direction:column;">
     <p style="color:#f1c40f; margin-bottom:16px;">Полный экран на телефоне</p>
     <button class="btn" onclick="phoneGoFullscreen()">Полный экран</button>
@@ -179,6 +185,22 @@ let sessionRef = null;
 let scene, cameraL, cameraR, rendererL, rendererR;
 let pcScene, pcCamera, pcRenderer;
 let isPlaying = false;
+let stereoEnabled = true;
+function toggleStereoMode() {
+  stereoEnabled = !stereoEnabled;
+  var btn = document.getElementById('stereo-toggle-btn');
+  var leftV = document.getElementById('left-view');
+  var rightV = document.getElementById('right-view');
+  if (stereoEnabled) {
+    if (btn) btn.textContent = 'Стерео: ВКЛ';
+    if (leftV) { leftV.style.width = '50%'; leftV.style.display = 'block'; }
+    if (rightV) { rightV.style.display = 'block'; }
+  } else {
+    if (btn) btn.textContent = 'Стерео: ВЫКЛ';
+    if (leftV) { leftV.style.width = '100%'; leftV.style.display = 'block'; }
+    if (rightV) { rightV.style.display = 'none'; }
+  }
+}
 let pcStreamActive = false;
 let playerPos = new THREE.Vector3(0, 1.7, 10);
 let targetQuaternion = new THREE.Quaternion();
@@ -400,6 +422,9 @@ function launchGame(gameName) {
     isGrounded = true;
   } else if (gameName === 'pong') {
     playerPos.set(0, 3.4, 6);
+    isGrounded = true;
+  } else if (gameName === 'fruit') {
+    playerPos.set(0, 1.7, 0);
     isGrounded = true;
   }
   // Hide the game selector once a game starts, so the view goes fullscreen.
@@ -2318,6 +2343,8 @@ function updateHUD() {
     setHudText(fishingStatusText);
   } else if (currentActiveGame === 'pong') {
     setHudText('Понг: ты ' + pongScoreYou + ' : ' + pongScoreAI + ' ИИ. Правый стик — подача');
+  } else if (currentActiveGame === 'fruit') {
+    setHudText(fruitStatusText);
   }
 }
 
@@ -2425,6 +2452,8 @@ function handleRightStick() {
       fishingAction();
     } else if (currentActiveGame === 'pong') {
       pongServe();
+    } else if (currentActiveGame === 'fruit') {
+      fruitSlash();
     } else if (currentActiveGame !== 'underwater') {
       if (isGrounded) {
         playerVelY = (currentActiveGame === 'roofrun') ? 14 : 9;
@@ -2532,6 +2561,8 @@ function initPCStreamScene() {
     buildFishingEnvironment(pcScene);
   } else if (currentActiveGame === 'pong') {
     buildPongEnvironment(pcScene);
+  } else if (currentActiveGame === 'fruit') {
+    buildFruitEnvironment(pcScene);
   } else {
     buildCityEnvironment(pcScene);
   }
@@ -2660,6 +2691,8 @@ function animatePC() {
     updateFishingWorld(pcScene, 0.016);
   } else if (currentActiveGame === 'pong') {
     updatePongWorld(pcScene, 0.016);
+  } else if (currentActiveGame === 'fruit') {
+    updateFruitWorld(pcScene, 0.016);
   }
   updateHUD();
 
@@ -2719,6 +2752,8 @@ function initVR3D() {
     buildFishingEnvironment(scene);
   } else if (currentActiveGame === 'pong') {
     buildPongEnvironment(scene);
+  } else if (currentActiveGame === 'fruit') {
+    buildFruitEnvironment(scene);
   } else {
     buildCityEnvironment(scene);
   }
@@ -2811,6 +2846,8 @@ function animateVR() {
     updateFishingWorld(scene, 0.016);
   } else if (currentActiveGame === 'pong') {
     updatePongWorld(scene, 0.016);
+  } else if (currentActiveGame === 'fruit') {
+    updateFruitWorld(scene, 0.016);
   }
   updateHUD();
 
@@ -2825,7 +2862,9 @@ function animateVR() {
   cameraR.quaternion.copy(currentQuaternion);
 
   rendererL.render(scene, cameraL);
-  rendererR.render(scene, cameraR);
+  if (stereoEnabled) {
+    rendererR.render(scene, cameraR);
+  }
 }
 </script>
 </body>
