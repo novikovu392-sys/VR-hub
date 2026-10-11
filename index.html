@@ -2789,8 +2789,8 @@ function initVR3D() {
 
   var leftView = document.getElementById('left-view');
   var rightView = document.getElementById('right-view');
-  leftView.innerHTML = '';
-  rightView.innerHTML = '';
+  leftView.innerHTML = '<div class="lens-wrapper" id="lens-left"><div class="vr-hud" id="left-hud"></div></div>';
+  rightView.innerHTML = '<div class="lens-wrapper" id="lens-right"><div class="vr-hud" id="right-hud"></div></div>';
 
   var aspect = (window.innerWidth / 2) / window.innerHeight;
   cameraL = new THREE.PerspectiveCamera(75, aspect, 0.1, 2000);
